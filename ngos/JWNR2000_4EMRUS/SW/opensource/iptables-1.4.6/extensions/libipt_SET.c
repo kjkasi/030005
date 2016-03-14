@@ -8,114 +8,111 @@
  * published by the Free Software Foundation.  
  */
 
-/* Shared library add-on to iptables to add IP set mangling target. */
+/* Shared library add-on to iptables to add IP set matching. */
 #include <stdio.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include <xtables.h>
-#include <linux/netfilter_ipv4/ip_set.h>
 #include <linux/netfilter_ipv4/ipt_set.h>
 #include "libipt_set.h"
 
-static void SET_help(void)
+static void set_help(void)
 {
-	printf("SET target options:\n"
-	       " --add-set name flags\n"
-	       " --del-set name flags\n"
-	       "		add/del src/dst IP/port from/to named sets,\n"
-	       "		where flags are the comma separated list of\n"
-	       "		'src' and 'dst' specifications.\n");
+	printf("set match options:\n"
+	       " [!] --match-set name flags\n"
+	       "		 'name' is the set name from to match,\n" 
+	       "		 'flags' are the comma separated list of\n"
+	       "		 'src' and 'dst' specifications.\n");
 }
 
-static const struct option SET_opts[] = {
-	{ .name = "add-set", .has_arg = true, .val = '1'},
-	{ .name = "del-set", .has_arg = true, .val = '2'},
+static const struct option set_opts[] = {
+	{ .name = "match-set", .has_arg = true, .val = '1'},
+	{ .name = "set",       .has_arg = true, .val = '2'},
 	{ .name = NULL }
 };
 
-static void SET_init(struct xt_entry_target *target)
+static void set_init(struct xt_entry_match *match)
 {
-	struct ipt_set_info_target *info =
-	    (struct ipt_set_info_target *) target->data;
-
-	memset(info, 0, sizeof(struct ipt_set_info_target));
-	info->add_set.index =
-	info->del_set.index = IP_SET_INVALID_ID;
-
-}
-
-static void
-parse_target(char **argv, int invert, unsigned int *flags,
-             struct ipt_set_info *info, const char *what)
-{
-	if (info->flags[0])
-		xtables_error(PARAMETER_PROBLEM,
-			   "--%s can be specified only once", what);
-
-	if (xtables_check_inverse(optarg, &invert, NULL, 0, argv))
-		xtables_error(PARAMETER_PROBLEM,
-			   "Unexpected `!' after --%s", what);
-
-	if (!argv[optind]
-	    || argv[optind][0] == '-' || argv[optind][0] == '!')
-		xtables_error(PARAMETER_PROBLEM,
-			   "--%s requires two args.", what);
-
-	if (strlen(optarg) > IP_SET_MAXNAMELEN - 1)
-		xtables_error(PARAMETER_PROBLEM,
-			   "setname `%s' too long, max %d characters.",
-			   optarg, IP_SET_MAXNAMELEN - 1);
-
-	get_set_byname(optarg, info);
-	parse_bindings(argv[optind], info);
-	optind++;
+	struct ipt_set_info_match *info = 
+		(struct ipt_set_info_match *) match->data;
 	
-	*flags = 1;
+
+	memset(info, 0, sizeof(struct ipt_set_info_match));
+
 }
 
-static int SET_parse(int c, char **argv, int invert, unsigned int *flags,
-                     const void *entry, struct xt_entry_target **target)
+static int set_parse(int c, char **argv, int invert, unsigned int *flags,
+                     const void *entry, struct xt_entry_match **match)
 {
-	struct ipt_set_info_target *myinfo =
-	    (struct ipt_set_info_target *) (*target)->data;
+	struct ipt_set_info_match *myinfo = 
+		(struct ipt_set_info_match *) (*match)->data;
+	struct ipt_set_info *info = &myinfo->match_set;
 
 	switch (c) {
-	case '1':		/* --add-set <set> <flags> */
-		parse_target(argv, invert, flags,
-			     &myinfo->add_set, "add-set");
-		break;
-	case '2':		/* --del-set <set>[:<flags>] <flags> */
-		parse_target(argv, invert, flags,
-			     &myinfo->del_set, "del-set");
+	case '2':
+#if 0
+		fprintf(stderr,
+			"--set option deprecated, please use --match-set\n");
+#endif
+	case '1':		/* --match-set <set> <flag>[,<flag> */
+		if (info->flags[0])
+			xtables_error(PARAMETER_PROBLEM,
+				   "--match-set can be specified only once");
+
+		xtables_check_inverse(optarg, &invert, &optind, 0, argv);
+		if (invert)
+			info->flags[0] |= IPSET_MATCH_INV;
+
+		if (!argv[optind]
+		    || argv[optind][0] == '-'
+		    || argv[optind][0] == '!')
+			xtables_error(PARAMETER_PROBLEM,
+				   "--match-set requires two args.");
+
+		if (strlen(optarg) > IP_SET_MAXNAMELEN - 1)
+			xtables_error(PARAMETER_PROBLEM,
+				   "setname `%s' too long, max %d characters.",
+				   optarg, IP_SET_MAXNAMELEN - 1);
+
+		get_set_byname(optarg, info);
+		parse_bindings(argv[optind], info);
+		DEBUGP("parse: set index %u\n", info->index);
+		optind++;
+		
+		*flags = 1;
 		break;
 
 	default:
 		return 0;
 	}
+
 	return 1;
 }
 
-static void SET_check(unsigned int flags)
+static void set_check(unsigned int flags)
 {
 	if (!flags)
 		xtables_error(PARAMETER_PROBLEM,
-			   "You must specify either `--add-set' or `--del-set'");
+			   "You must specify `--match-set' with proper arguments");
+	DEBUGP("final check OK\n");
 }
 
 static void
-print_target(const char *prefix, const struct ipt_set_info *info)
+print_match(const char *prefix, const struct ipt_set_info *info)
 {
 	int i;
 	char setname[IP_SET_MAXNAMELEN];
 
-	if (info->index == IP_SET_INVALID_ID)
-		return;
 	get_set_byid(setname, info->index);
-	printf("%s %s", prefix, setname);
+	printf("%s%s %s", 
+	       (info->flags[0] & IPSET_MATCH_INV) ? "! " : "",
+	       prefix,
+	       setname); 
 	for (i = 0; i < IP_SET_MAX_BINDINGS; i++) {
 		if (!info->flags[i])
 			break;		
@@ -126,39 +123,38 @@ print_target(const char *prefix, const struct ipt_set_info *info)
 	printf(" ");
 }
 
-static void SET_print(const void *ip, const struct xt_entry_target *target,
+/* Prints out the matchinfo. */
+static void set_print(const void *ip, const struct xt_entry_match *match,
                       int numeric)
 {
-	const struct ipt_set_info_target *info = (const void *)target->data;
+	const struct ipt_set_info_match *info = (const void *)match->data;
 
-	print_target("add-set", &info->add_set);
-	print_target("del-set", &info->del_set);
+	print_match("match-set", &info->match_set);
 }
 
-static void SET_save(const void *ip, const struct xt_entry_target *target)
+static void set_save(const void *ip, const struct xt_entry_match *match)
 {
-	const struct ipt_set_info_target *info = (const void *)target->data;
+	const struct ipt_set_info_match *info = (const void *)match->data;
 
-	print_target("--add-set", &info->add_set);
-	print_target("--del-set", &info->del_set);
+	print_match("--match-set", &info->match_set);
 }
 
-static struct xtables_target set_tg_reg = {
-	.name		= "SET",
+static struct xtables_match set_mt_reg = {
+	.name		= "set",
 	.version	= XTABLES_VERSION,
 	.family		= NFPROTO_IPV4,
-	.size		= XT_ALIGN(sizeof(struct ipt_set_info_target)),
-	.userspacesize	= XT_ALIGN(sizeof(struct ipt_set_info_target)),
-	.help		= SET_help,
-	.init		= SET_init,
-	.parse		= SET_parse,
-	.final_check	= SET_check,
-	.print		= SET_print,
-	.save		= SET_save,
-	.extra_opts	= SET_opts,
+	.size		= XT_ALIGN(sizeof(struct ipt_set_info_match)),
+	.userspacesize	= XT_ALIGN(sizeof(struct ipt_set_info_match)),
+	.help		= set_help,
+	.init		= set_init,
+	.parse		= set_parse,
+	.final_check	= set_check,
+	.print		= set_print,
+	.save		= set_save,
+	.extra_opts	= set_opts,
 };
 
 void _init(void)
 {
-	xtables_register_target(&set_tg_reg);
+	xtables_register_match(&set_mt_reg);
 }

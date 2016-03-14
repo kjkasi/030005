@@ -17,12 +17,6 @@
 #include <netinet/in.h>
 #include <xtables.h>
 
-/* Netgear Changes Start */
-#if defined(LANTIQ_UGW_5_1) || defined(BRCM_4_12_XX) || defined(BUILD_RTL8196C) || defined(BUILD_INTEL_PUMA_PLATFORM)
-#include <stdbool.h>
-#endif
-/* Netgear Changes End */
-
 #include <linux/netfilter/xt_sctp.h>
 
 #if 0

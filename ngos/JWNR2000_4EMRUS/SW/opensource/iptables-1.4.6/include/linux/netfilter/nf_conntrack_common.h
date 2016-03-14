@@ -73,11 +73,6 @@ enum ip_conntrack_status {
 	/* Connection has fixed timeout. */
 	IPS_FIXED_TIMEOUT_BIT = 10,
 	IPS_FIXED_TIMEOUT = (1 << IPS_FIXED_TIMEOUT_BIT),
-	#if defined(CONFIG_MIPS_BRCM)
-    	/* Conntrack is freed */
-    	IPS_FREED_BIT = 12,
-    	IPS_FREED = (1 << IPS_FREED_BIT),
-	#endif
 };
 
 /* Connection tracking event bits */

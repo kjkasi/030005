@@ -30,18 +30,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/vfs.h>    /* or <sys/statfs.h> */
-
-#if defined(HAVE_LINUX_MAGIC_H)
-#	include <linux/magic.h> /* for PROC_SUPER_MAGIC */
-#elif defined(HAVE_LINUX_PROC_FS_H)
-#	include <linux/proc_fs.h>	/* Linux 2.4 */
-#else
-#	define PROC_SUPER_MAGIC	0x9fa0
-#endif
 
 #include <xtables.h>
 #include <limits.h> /* INT_MAX in ip_tables.h/ip6_tables.h */
@@ -145,7 +133,6 @@ void xtables_set_revision(char *name, u_int8_t revision)
  */
 struct xtables_afinfo {
 	const char *kmod;
-	const char *proc_exists;
 	const char *libprefix;
 	uint8_t family;
 	uint8_t ipproto;
@@ -155,7 +142,6 @@ struct xtables_afinfo {
 
 static const struct xtables_afinfo afinfo_ipv4 = {
 	.kmod          = "ip_tables",
-	.proc_exists   = "/proc/net/ip_tables_names",
 	.libprefix     = "libipt_",
 	.family	       = NFPROTO_IPV4,
 	.ipproto       = IPPROTO_IP,
@@ -165,7 +151,6 @@ static const struct xtables_afinfo afinfo_ipv4 = {
 
 static const struct xtables_afinfo afinfo_ipv6 = {
 	.kmod          = "ip6_tables",
-	.proc_exists   = "/proc/net/ip6_tables_names",
 	.libprefix     = "libip6t_",
 	.family        = NFPROTO_IPV6,
 	.ipproto       = IPPROTO_IPV6,
@@ -362,7 +347,6 @@ int xtables_insmod(const char *modname, const char *modprobe, bool quiet)
 		/* not usually reached */
 		exit(1);
 	case -1:
-		free(buf);
 		return -1;
 
 	default: /* parent */
@@ -375,39 +359,15 @@ int xtables_insmod(const char *modname, const char *modprobe, bool quiet)
 	return -1;
 }
 
-/* return true if a given file exists within procfs */
-static bool proc_file_exists(const char *filename)
-{
-	struct stat s;
-	struct statfs f;
-
-	if (lstat(filename, &s))
-		return false;
-	if (!S_ISREG(s.st_mode))
-		return false;
-	if (statfs(filename, &f))
-		return false;
-	if (f.f_type != PROC_SUPER_MAGIC)
-		return false;
-	return true;
-}
-
 int xtables_load_ko(const char *modprobe, bool quiet)
 {
 	static bool loaded = false;
-	int ret;
+	static int ret = -1;
 
-	if (loaded)
-		return 0;
-
-	if (proc_file_exists(afinfo->proc_exists)) {
-		loaded = true;
-		return 0;
-	};
-
-	ret = xtables_insmod(afinfo->kmod, modprobe, quiet);
-	if (ret == 0)
-		loaded = true;
+	if (!loaded) {
+		ret = xtables_insmod(afinfo->kmod, modprobe, quiet);
+		loaded = (ret == 0);
+	}
 
 	return ret;
 }
@@ -1688,9 +1648,9 @@ int xtables_check_inverse(const char option[], int *invert,
 	if (option == NULL || strcmp(option, "!") != 0)
 		return false;
 
-/*	fprintf(stderr, "Using intrapositioned negation "
+	fprintf(stderr, "Using intrapositioned negation "
 	        "(`--option ! this`) is deprecated in favor of "
-	        "extrapositioned (`! --option this`).\n"); */
+	        "extrapositioned (`! --option this`).\n");
 
 	if (*invert)
 		xt_params->exit_err(PARAMETER_PROBLEM,

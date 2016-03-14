@@ -63,11 +63,11 @@ CLEANFILES       = iptables.8 ip6tables.8
 if ENABLE_IPV4
 sbin_PROGRAMS += iptables-multi
 v4_bin_links   = iptables-xml
-v4_sbin_links  = iptables.exe iptables-restore iptables-save
+v4_sbin_links  = iptables iptables-restore iptables-save
 endif
 if ENABLE_IPV6
 sbin_PROGRAMS += ip6tables-multi
-v6_sbin_links  = ip6tables.exe ip6tables-restore ip6tables-save
+v6_sbin_links  = ip6tables ip6tables-restore ip6tables-save
 endif
 
 iptables.8: ${srcdir}/iptables.8.in extensions/matches4.man extensions/targets4.man

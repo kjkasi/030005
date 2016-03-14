@@ -42,13 +42,7 @@ parse_mac(const char *mac, struct xt_mac_info *info)
 		if (end == mac + i*3 + 2
 		    && number >= 0
 		    && number <= 255)
-			/* Netgear change start */
-			#ifdef BUILD_RTL8196C
-				info->srcaddr.macaddr[i] = number;
-			#else
-				info->srcaddr[i] = number;
-			#endif
-			/* Netgear change end */
+			info->srcaddr[i] = number;
 		else
 			xtables_error(PARAMETER_PROBLEM,
 				   "Bad mac address `%s'", mac);
@@ -102,13 +96,8 @@ mac_print(const void *ip, const struct xt_entry_match *match, int numeric)
 
 	if (info->invert)
 		printf("! ");
-	/* Netgear Changes Start */
-	#ifdef BUILD_RTL8196C
-		print_mac(info->srcaddr.macaddr);
-	#else
-		print_mac(info->srcaddr);
-	#endif
-	/* Netgear Changes End */
+	
+	print_mac(info->srcaddr);
 }
 
 static void mac_save(const void *ip, const struct xt_entry_match *match)
@@ -119,13 +108,7 @@ static void mac_save(const void *ip, const struct xt_entry_match *match)
 		printf("! ");
 
 	printf("--mac-source ");
-	/* Netgear Changes Start */
-	#ifdef BUILD_RTL8196C
-		print_mac(info->srcaddr.macaddr);
-	#else
-		print_mac(info->srcaddr);
-	#endif
-	/* Netgear Changes End */
+	print_mac(info->srcaddr);
 }
 
 static struct xtables_match mac_match = {

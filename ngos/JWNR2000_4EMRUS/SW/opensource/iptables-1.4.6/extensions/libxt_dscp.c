@@ -1,16 +1,13 @@
 /* Shared library add-on to iptables for DSCP
  *
- * (C) 2002 by Harald Welte <laforge@gnumonks.org>
+ * (C) 2000- 2002 by Matthew G. Marsh <mgm@paktronix.com>,
+ * 		     Harald Welte <laforge@gnumonks.org>
  *
  * This program is distributed under the terms of GNU GPL v2, 1991
  *
- * libipt_dscp.c borrowed heavily from libipt_tos.c
+ * libipt_DSCP.c borrowed heavily from libipt_TOS.c
  *
- * --class support added by Iain Barnes
- * 
- * For a list of DSCP codepoints see 
- * http://www.iana.org/assignments/dscp-registry
- *
+ * --set-class added by Iain Barnes
  */
 #include <stdio.h>
 #include <string.h>
@@ -19,32 +16,35 @@
 
 #include <xtables.h>
 #include <linux/netfilter/x_tables.h>
-#include <linux/netfilter/xt_dscp.h>
+#include <linux/netfilter/xt_DSCP.h>
 
 /* This is evil, but it's my code - HW*/
 #include "dscp_helper.c"
 
-static void dscp_help(void)
+static void DSCP_help(void)
 {
 	printf(
-"dscp match options\n"
-"[!] --dscp value		Match DSCP codepoint with numerical value\n"
+"DSCP target options\n"
+"  --set-dscp value		Set DSCP field in packet header to value\n"
 "  		                This value can be in decimal (ex: 32)\n"
 "               		or in hex (ex: 0x20)\n"
-"[!] --dscp-class name		Match the DiffServ class. This value may\n"
-"				be any of the BE,EF, AFxx or CSx classes\n"
+"  --set-dscp-class class	Set the DSCP field in packet header to the\n"
+"				value represented by the DiffServ class value.\n"
+"				This class may be EF,BE or any of the CSxx\n"
+"				or AFxx classes.\n"
 "\n"
-"				These two options are mutually exclusive !\n");
+"				These two options are mutually exclusive !\n"
+);
 }
 
-static const struct option dscp_opts[] = {
-	{ "dscp", 1, NULL, 'F' },
-	{ "dscp-class", 1, NULL, 'G' },
+static const struct option DSCP_opts[] = {
+	{ "set-dscp", 1, NULL, 'F' },
+	{ "set-dscp-class", 1, NULL, 'G' },
 	{ .name = NULL }
 };
 
 static void
-parse_dscp(const char *s, struct xt_dscp_info *dinfo)
+parse_dscp(const char *s, struct xt_DSCP_info *dinfo)
 {
 	unsigned int dscp;
        
@@ -61,7 +61,7 @@ parse_dscp(const char *s, struct xt_dscp_info *dinfo)
 
 
 static void
-parse_class(const char *s, struct xt_dscp_info *dinfo)
+parse_class(const char *s, struct xt_DSCP_info *dinfo)
 {
 	unsigned int dscp = class_to_dscp(s);
 
@@ -70,33 +70,25 @@ parse_class(const char *s, struct xt_dscp_info *dinfo)
 }
 
 
-static int
-dscp_parse(int c, char **argv, int invert, unsigned int *flags,
-           const void *entry, struct xt_entry_match **match)
+static int DSCP_parse(int c, char **argv, int invert, unsigned int *flags,
+                      const void *entry, struct xt_entry_target **target)
 {
-	struct xt_dscp_info *dinfo
-		= (struct xt_dscp_info *)(*match)->data;
+	struct xt_DSCP_info *dinfo
+		= (struct xt_DSCP_info *)(*target)->data;
 
 	switch (c) {
 	case 'F':
 		if (*flags)
 			xtables_error(PARAMETER_PROBLEM,
-			           "DSCP match: Only use --dscp ONCE!");
-		xtables_check_inverse(optarg, &invert, &optind, 0, argv);
+			           "DSCP target: Only use --set-dscp ONCE!");
 		parse_dscp(optarg, dinfo);
-		if (invert)
-			dinfo->invert = 1;
 		*flags = 1;
 		break;
-
 	case 'G':
 		if (*flags)
 			xtables_error(PARAMETER_PROBLEM,
-					"DSCP match: Only use --dscp-class ONCE!");
-		xtables_check_inverse(optarg, &invert, &optind, 0, argv);
+				   "DSCP target: Only use --set-dscp-class ONCE!");
 		parse_class(optarg, dinfo);
-		if (invert)
-			dinfo->invert = 1;
 		*flags = 1;
 		break;
 
@@ -107,44 +99,51 @@ dscp_parse(int c, char **argv, int invert, unsigned int *flags,
 	return 1;
 }
 
-static void dscp_check(unsigned int flags)
+static void DSCP_check(unsigned int flags)
 {
 	if (!flags)
 		xtables_error(PARAMETER_PROBLEM,
-		           "DSCP match: Parameter --dscp is required");
+		           "DSCP target: Parameter --set-dscp is required");
 }
 
 static void
-dscp_print(const void *ip, const struct xt_entry_match *match, int numeric)
+print_dscp(u_int8_t dscp, int numeric)
 {
-	const struct xt_dscp_info *dinfo =
-		(const struct xt_dscp_info *)match->data;
-	printf("DSCP match %s0x%02x", dinfo->invert ? "!" : "", dinfo->dscp);
+ 	printf("0x%02x ", dscp);
 }
 
-static void dscp_save(const void *ip, const struct xt_entry_match *match)
+static void DSCP_print(const void *ip, const struct xt_entry_target *target,
+                       int numeric)
 {
-	const struct xt_dscp_info *dinfo =
-		(const struct xt_dscp_info *)match->data;
-
-	printf("%s--dscp 0x%02x ", dinfo->invert ? "! " : "", dinfo->dscp);
+	const struct xt_DSCP_info *dinfo =
+		(const struct xt_DSCP_info *)target->data;
+	printf("DSCP set ");
+	print_dscp(dinfo->dscp, numeric);
 }
 
-static struct xtables_match dscp_match = {
+static void DSCP_save(const void *ip, const struct xt_entry_target *target)
+{
+	const struct xt_DSCP_info *dinfo =
+		(const struct xt_DSCP_info *)target->data;
+
+	printf("--set-dscp 0x%02x ", dinfo->dscp);
+}
+
+static struct xtables_target dscp_target = {
 	.family		= NFPROTO_UNSPEC,
-	.name 		= "dscp",
-	.version 	= XTABLES_VERSION,
-	.size 		= XT_ALIGN(sizeof(struct xt_dscp_info)),
-	.userspacesize	= XT_ALIGN(sizeof(struct xt_dscp_info)),
-	.help		= dscp_help,
-	.parse		= dscp_parse,
-	.final_check	= dscp_check,
-	.print		= dscp_print,
-	.save		= dscp_save,
-	.extra_opts	= dscp_opts,
+	.name		= "DSCP",
+	.version	= XTABLES_VERSION,
+	.size		= XT_ALIGN(sizeof(struct xt_DSCP_info)),
+	.userspacesize	= XT_ALIGN(sizeof(struct xt_DSCP_info)),
+	.help		= DSCP_help,
+	.parse		= DSCP_parse,
+	.final_check	= DSCP_check,
+	.print		= DSCP_print,
+	.save		= DSCP_save,
+	.extra_opts	= DSCP_opts,
 };
 
 void _init(void)
 {
-	xtables_register_match(&dscp_match);
+	xtables_register_target(&dscp_target);
 }

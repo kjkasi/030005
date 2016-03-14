@@ -18,7 +18,7 @@ int main(int argc, char **argv)
 	}
 
 	progname = basename(argv[0]);
-	if (strcmp(progname, "iptables.exe") == 0) // Netgear Modified
+	if (strcmp(progname, "iptables") == 0)
 		return iptables_main(argc, argv);
 	if (strcmp(progname, "iptables-save") == 0)
 		return iptables_save_main(argc, argv);
