@@ -1,0 +1,163 @@
+#!/bin/sh
+
+#set -x
+if [ -r /etc/InfineonScripts/rc.conf ]; then
+	. /etc/InfineonScripts/rc.conf
+	ENVLOADED="1"
+fi
+
+if [ -r /etc/InfineonScripts/config.sh ]; then
+	. /etc/InfineonScripts/config.sh
+	CONFIGLOADED="1"
+fi
+
+check=`expr substr $ADSL_MODE 36 1`
+if [ "$ADSL_MODE" = "" -o "$check" = "" ]; then
+    ADSL_MODE="AnnexA_1_1_1_1_1_1_0_0_0_0_0_0_0_0_0"
+fi
+adsl_mode=`expr substr $ADSL_MODE 8 29`
+G992_1_A=`expr substr $adsl_mode 1 1`
+G992_2=`expr substr $adsl_mode 3 1`
+G992_3_A=`expr substr $adsl_mode 5 1`
+G992_5_A=`expr substr $adsl_mode 7 1`
+T1_413=`expr substr $adsl_mode 9 1`
+G992_3_L=`expr substr $adsl_mode 11 1`
+G992_3_I=`expr substr $adsl_mode 13 1`
+G992_5_I=`expr substr $adsl_mode 15 1`
+G992_3_M=`expr substr $adsl_mode 17 1`
+G992_5_M=`expr substr $adsl_mode 19 1`
+G992_1_B=`expr substr $adsl_mode 21 1`
+G992_3_B=`expr substr $adsl_mode 23 1`
+G992_5_B=`expr substr $adsl_mode 25 1`
+G992_3_J=`expr substr $adsl_mode 27 1`
+G992_5_J=`expr substr $adsl_mode 29 1`
+
+#adsl_mode=${ADSL_MODE:7}
+#G992_1_A=${adsl_mode:0:1}
+#G992_3_A=${adsl_mode:2:1}
+#G992_5_A=${adsl_mode:4:1}
+#T1_413=${adsl_mode:6:1}
+#G992_3_L=${adsl_mode:8:1}
+#G992_3_I=${adsl_mode:10:1}
+#G992_5_I=${adsl_mode:12:1}
+#G992_3_M=${adsl_mode:14:1}
+#G992_5_M=${adsl_mode:16:1}
+#G992_1_B=${adsl_mode:18:1}
+#G992_3_B=${adsl_mode:20:1}
+#G992_5_B=${adsl_mode:22:1}
+#G992_3_J=${adsl_mode:24:1}
+#G992_5_J=${adsl_mode:26:1}
+#echo $G992_1_A $G992_3_A $G992_5_A $T1_413 $G992_3_L $G992_3_I $G992_5_I $G992_3_M $G992_5_M $G992_1_B $G992_3_B $G992_5_B $G992_3_J $G992_5_J
+
+#function dec2hex()
+#{
+#	x=`expr $1 / 16`
+#	y=`expr $1 % 16`
+#        echo $x$y
+#}
+
+#xTSE1
+xTSE1=0
+if [ "$T1_413" = "1" ]; then
+	xTSE1=`expr $xTSE1 + 1`
+fi
+if [ "$G992_1_A" = "1" ]; then
+	xTSE1=`expr $xTSE1 + 4`
+fi
+if [ "$G992_1_B" = "1" ]; then
+	xTSE1=`expr $xTSE1 + 16`
+fi
+x=`expr $xTSE1 / 16`
+y=`expr $xTSE1 % 16`
+xTSE1=$x$y
+#xTSE1=`dec2hex $xTSE1`
+
+#xTSE2
+xTSE2=0
+if [ "$G992_2" = "1" ]; then
+	xTSE2=`expr $xTSE2 + 1`
+fi
+x=`expr $xTSE2 / 16`
+y=`expr $xTSE2 % 16`
+xTSE2=$x$y
+
+#xTSE3
+xTSE3=0
+if [ "$G992_3_A" = "1" ]; then
+	xTSE3=`expr $xTSE3 + 4`
+fi
+if [ "$G992_3_B" = "1" ]; then
+	xTSE3=`expr $xTSE3 + 16`
+fi
+x=`expr $xTSE3 / 16`
+y=`expr $xTSE3 % 16`
+xTSE3=$x$y
+
+#xTSE4
+xTSE4=0
+if [ "$G992_3_I" = "1" ]; then
+	xTSE4=`expr $xTSE4 + 16`
+fi
+if [ "$G992_3_J" = "1" ]; then
+	xTSE4=`expr $xTSE4 + 64`
+fi
+x=`expr $xTSE4 / 16`
+y=`expr $xTSE4 % 16`
+xTSE4=$x$y
+
+#xTSE5
+xTSE5=0
+if [ "$G992_3_L" = "1" ]; then
+	xTSE5=`expr $xTSE5 + 4`
+fi
+if [ "$G992_3_M" = "1" ]; then
+	xTSE5=`expr $xTSE5 + 64`
+fi
+x=`expr $xTSE5 / 16`
+y=`expr $xTSE5 % 16`
+xTSE5=$x$y
+
+#xTSE6
+xTSE6=0
+if [ "$G992_5_A" = "1" ]; then
+	xTSE6=`expr $xTSE6 + 1`
+fi
+if [ "$G992_5_B" = "1" ]; then
+	xTSE6=`expr $xTSE6 + 4`
+fi
+if [ "$G992_5_I" = "1" ]; then
+	xTSE6=`expr $xTSE6 + 64`
+fi
+x=`expr $xTSE6 / 16`
+y=`expr $xTSE6 % 16`
+xTSE6=$x$y
+
+#xTSE7
+xTSE7=0
+if [ "$G992_5_J" = "1" ]; then
+	xTSE7=`expr $xTSE7 + 1`
+fi
+if [ "$G992_5_M" = "1" ]; then
+	xTSE7=`expr $xTSE7 + 4`
+fi
+x=`expr $xTSE7 / 16`
+y=`expr $xTSE7 % 16`
+xTSE7=$x$y
+
+#xTSE8
+xTSE8="00"
+
+
+#xTSE
+xTSE=${xTSE1}_${xTSE2}_${xTSE3}_${xTSE4}_${xTSE5}_${xTSE6}_${xTSE7}_${xTSE8}
+echo $xTSE
+
+if [ -f /bin/dsl_cpe_control ]; then
+
+    if [ "$DSL_API_DEBUG" = "ENABLE" ]; then
+		/bin/dsl_cpe_control -o -n"/etc/InfineonScripts/xdslrc.sh" -i${xTSE} -f /etc/adsl/ModemHWE.bin &
+    else
+		/bin/dsl_cpe_control -n"/etc/InfineonScripts/xdslrc.sh" -i${xTSE} -f /etc/adsl/ModemHWE.bin &
+    fi
+fi
+

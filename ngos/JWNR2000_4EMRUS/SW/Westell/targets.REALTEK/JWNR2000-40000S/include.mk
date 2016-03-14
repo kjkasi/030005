@@ -1,0 +1,25 @@
+TOOLCHAIN_TOP = /opt/toolchains/rsdk-1.3.6-4181-EB-2.6.30-0.9.30
+TOOLCHAIN = $(TOOLCHAIN_TOP)
+TOOL_VER    := 3.4.6-1.3.6
+ARCH	    := mips
+ENDIAN      := big
+B_ENDIAN    := 1
+ARCH_ENDIAN := mips
+TOOL_PREFIX := $(ARCH_ENDIAN)-linux-
+KERNEL_VER  := 2.6.30.9
+KERNEL_DIR  := $(BUILD_DIR)/Realtek_3.1/linux
+
+# The following line is used by flashimagebuild to determine flash size/layout
+BRCM_CHIP		:= 6358
+
+# ADSL_FIRMWARE_VER	:= 447611
+# ADSL_FIRMWARE_VER	:= 447B01
+# ADSL_FIRMWARE_VER	:= 449311
+# ADSL_FIRMWARE_VER	:= 449811
+# ADSL_FIRMWARE_VER	:= 449B11
+# ADSL_FIRMWARE_VER	:= 449C11
+ADSL_FIRMWARE_VER	:= 449D11
+
+ADSL_DRIVER_VER := 3.16.5.4
+ADSL_CONTROL_VER := 3.16.5.4
+

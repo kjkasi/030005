@@ -1,0 +1,13 @@
+ifconfig eth0 0.0.0.0 up
+brctl addbr br0
+brctl addif br0 eth0
+ifconfig ptm0 0.0.0.0 up
+brctl addif br0 ptm0
+ifconfig br0 192.168.1.1 up
+
+
+/bin/ppacmd init 
+/bin/ppacmd addlan -i eth0 
+/bin/ppacmd addwan -i ptm0
+/bin/ppacmd control --enable-lan --enable-wan
+

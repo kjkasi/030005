@@ -1,0 +1,22 @@
+/sbin/ifconfig eth0.3 down
+/bin/brctl delif br0 eth0.3
+/sbin/ifconfig usb0 down
+/bin/brctl delif br0 usb0
+modprobe -r g_ether
+/sbin/ifconfig ath0 down
+/bin/brctl delif br0 ath0
+/bin/ppacmd dellan -i ath0
+/bin/ppacmd dellan -i br0
+/bin/ppacmd dellan -i br3
+/sbin/ifconfig br0 down
+/bin/ppacmd control --disable-lan --disable-wan
+
+echo "Destroying Switch on eth0"
+/bin/switch_utility HWInit 0
+/bin/vconfig rem eth0.2
+
+echo "Stop the LAN"
+/bin/sh /var/net_mgr/exec/LanStop
+
+echo "Start the LAN"
+/bin/sh /var/net_mgr/exec/LanStart

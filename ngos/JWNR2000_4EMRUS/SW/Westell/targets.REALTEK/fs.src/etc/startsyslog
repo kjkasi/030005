@@ -1,0 +1,112 @@
+#!/bin/sh
+#
+# syslogd is started early (without remote syslogging) by the MMInit script.
+# The purpose this script is to conditionally restart syslogd with the
+# correct arguments if the remote logging switches change.
+# We are run by an entry in the AppExec table, watching the
+# RemoteLogConfig configuration variables...
+# 
+
+#  SYSLOG SIZE ARGUMENTS!
+#  syslogd keeps our log messages in a circular memory buffer.
+#  The size is important.  Envoy assumes that it will be < 32K.
+#  If we increase the size of the buffer beyond 32K, Envoy
+#  will need to be modified.
+
+SYSLOGDPID=""
+OLDLOGSIZE=""
+
+PSOUT="`ps | grep syslogd | grep -v grep`"
+
+if [ "$PSOUT" ] ; then
+    set $PSOUT
+    SYSLOGDPID=${1}
+    OLDLOGSIZE=${8}
+fi
+
+# at system startup, syslogd could be still fork/exec'ing at this point
+# if this is the case, the above SYSLOGDPID could be the parent zombie.
+# wait 10 seconds for things to settle down, and get info on the *child*
+
+wait4 $SYSLOGDPID 10
+
+PSOUT="`ps | grep syslogd | grep -v grep`"
+
+if [ "$PSOUT" ] ; then
+    set $PSOUT
+    SYSLOGDPID=${1}
+    OLDLOGSIZE=${8}
+fi
+
+
+if [ -f /WFIO/loghost ] ; then
+    OLDREMOTEHOST="`cat /WFIO/loghost`"
+else
+    OLDREMOTEHOST=""
+fi
+
+eval `cfg_read -s AppSwInfo`
+
+version=$AppSwInfo_0_AppSwVer
+
+length=${#version}
+
+if [ $length -le "0" ]; then
+        version="Un-Configured"
+fi
+
+eval `cfg_read -s RemoteLogConfig`
+
+# if the first syslogd (spawned at boot by MMInit) is currently running
+if [ "$SYSLOGDPID" ] ; then
+    # and is not remote logging, per config
+    if [ "$OLDREMOTEHOST" = "" ]; then    # or not remote logging, as directed
+            if [ "$RemoteLogConfig_0_Enabled" = "0" ]; then
+                if [ "${RemoteLogConfig_0_LogSize}" = "${OLDLOGSIZE}" ] ; then
+                    # all is good.  Wait for it to die, or us to be killed
+                    exec wait4 $SYSLOGDPID -1
+                fi
+            fi
+    # or logging to the correct address
+    elif [ "$OLDREMOTEHOST" \
+         = "$RemoteLogConfig_0_IPAddress" ] ; then 
+            if [ "$RemoteLogConfig_0_Enabled" = "1" ]; then
+                if [ "${RemoteLogConfig_0_LogSize}" = "${OLDLOGSIZE}" ] ; then
+                    # all is good.  Wait for it to die, or us to be killed
+                    exec wait4 $SYSLOGDPID -1
+                fi
+            fi
+    fi
+    # remote log config must have changed. terminate current and restart...
+    kill -9 $SYSLOGDPID
+    # the original syslog is started as a daemon...so if we catch it at the
+    # beginning of the fork/exec, there could be to of them in the PS table.
+    # (the first possibly being a zombie) Kill the other one, if it exists
+
+    # freakishly, in debugging this script, I've see the above kill execute
+    # and the subsequent " set `ps | grep syslogd | grep -v grep`" return
+    # the identical pid, as if the kill failed.  Wait for it to really die...
+    wait4 $SYSLOGDPID -2
+
+    # look for any more...
+    SYSLOGDPID=""
+    PSOUT="`ps | grep syslogd | grep -v grep`"
+    if [ "$PSOUT" ] ; then
+        set $PSOUT
+        SYSLOGDPID=${1}
+    fi
+    if [ "$SYSLOGDPID" ] ; then
+        kill -9 $SYSLOGDPID
+    fi
+fi
+
+# something in RemoteLogConfig must have changed.  Run it again,
+# and make sure /WFIO/loghost reflects the current config for next boot...
+if [ "$RemoteLogConfig_0_Enabled" = "1" ]; then
+    echo $RemoteLogConfig_0_IPAddress > /WFIO/loghost
+	(wait4 1 10; logger "syslogd: also logging to remote loghost $RemoteLogConfig_0_IPAddress")&
+    exec syslogd -C ${RemoteLogConfig_0_LogSize} -n -m 0 -L -R $RemoteLogConfig_0_IPAddress -v $version
+else
+    rm -f /WFIO/loghost
+    exec syslogd -C ${RemoteLogConfig_0_LogSize} -n -m 0  -v $version
+fi

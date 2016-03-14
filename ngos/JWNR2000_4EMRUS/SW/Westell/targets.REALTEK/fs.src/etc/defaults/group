@@ -1,0 +1,4 @@
+# group:passwd:gid:user_list
+wheel::0:root
+ftp::100:ftp
+

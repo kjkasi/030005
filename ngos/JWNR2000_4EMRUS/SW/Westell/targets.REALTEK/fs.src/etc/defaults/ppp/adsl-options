@@ -1,0 +1,7 @@
+# Common options to PPPoE/PPPoA
+noipdefault
+sync
+novjccomp
+noaccomp
+nopcomp
+asyncmap 0

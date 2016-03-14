@@ -1,0 +1,147 @@
+#!/bin/sh
+
+PATH=/sbin:/bin
+export PATH
+
+mount -t proc proc /proc
+mount -t devpts devpts /dev/pts
+/bin/mount -a
+mkdir -p /var/log/sa /var/run /var/state/dhcp /var/udhcpd /var/dev /var/lock /var/tmp
+mkdir -p /var/net_mgr
+mkdir -m 777 /var/ftp
+
+# Copy default etc files into rw etc directory
+cp -r /etc/defaults /var/etc
+
+# IP Multicast - Force nothing
+#
+echo 3 > /proc/sys/net/ipv4/conf/all/force_igmp_version
+
+# Turn on IP forwarding
+#
+echo "1" > /proc/sys/net/ipv4/ip_forward
+
+# Turn on IPv6 forwarding
+if [ -f /proc/sys/net/ipv6/conf/all/forwarding ]
+then
+    echo "1" > /proc/sys/net/ipv6/conf/all/forwarding
+fi
+
+# Tune default receive window
+echo 65535 > /proc/sys/net/core/wmem_default
+echo 65535 > /proc/sys/net/core/rmem_default
+# Tune max receive window
+echo 65535 > /proc/sys/net/core/wmem_max
+echo 65535 > /proc/sys/net/core/rmem_max
+
+# load netfilter modules
+/etc/modules_install /lib/modules/`uname -r`/kernel
+
+# Since all ALG modules are not loaded by default loat RTSP modules manually
+modprobe nf_conntrack_rtsp
+modprobe nf_nat_rtsp
+
+# Tune default TIME_WAIT timeout
+echo 75 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_time_wait
+# Tune default NAT timeouts to match with Versalink
+echo 60 > /proc/sys/net/ipv4/netfilter/ip_conntrack_icmp_timeout
+echo 5 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_close
+echo 43200 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_established
+echo 10 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_syn_sent
+echo 60 > /proc/sys/net/ipv4/netfilter/ip_conntrack_udp_timeout
+echo 60 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_last_ack
+
+# If we really wanted to work well on a network with a
+# large bandwidth-delay product...
+# if true ; then
+# echo 8388608 > /proc/sys/net/core/wmem_max 
+# echo 8388608 > /proc/sys/net/core/rmem_max 
+# echo "4096 87380 4194304" > /proc/sys/net/ipv4/tcp_rmem
+# echo "4096 65536 4194304" > /proc/sys/net/ipv4/tcp_wmem
+# fi
+
+# Load all dynamic char drivers
+# Westell Flash File System Driver and mount wstlffs.o
+# Westell Flash Update Driver wstlmgmt.o
+modprobe ifxmips_wdt
+modprobe ifx_drv_dsl
+modprobe g_ether host_addr=00:60:0f:00:00:02
+modprobe ifx_nfext_ppp
+
+ifconfig lo 127.0.0.1 netmask 255.0.0.0 broadcast 127.255.255.255 up
+#install the kernel loadable modules
+EXTRADIR=/lib/modules/`uname -r`/extra
+if [ -d $EXTRADIR ]
+then
+	/etc/modules_install $EXTRADIR
+fi
+
+# Mount the ffs file system here to make sure that the ffs driver has
+# finished initialization.
+mount -t ffs -o noatime,noexec none /WFIO
+
+# Load Infineon's ADSL software
+if [ -r /etc/adsl/ModemHWE.bin ]; then
+#    /bin/dsl_cpe_control -i -f /etc/adsl/ModemHWE.bin &
+    /bin/dsl_cpe_control -i05_01_04_00_04_01_00_00 -f /etc/adsl/ModemHWE.bin &
+#    /etc/InfineonScripts/rc.bringup_adsl_start
+else
+    echo "Not able to locate ADSL FW image"
+fi
+
+wlanconfig ath0 create wlandev wifi0 wlanmode ap> /dev/null 2>&1
+
+# Enables A4 acceleration on AmazonSE
+modprobe ifx_ppa_api
+# echo "enable routing" > /proc/ppa/api/hook
+
+# Disables Infineon debug messages
+echo "disable assert" > /proc/eth/dbg
+
+# From http://lartc.org/lartc.html
+#  Basically, if the reply to a packet wouldnt go out the interface
+#  this packet came in, then this is a bogus packet and should be ignored.
+# This is disabled because it can interfere with IPSec.
+#for i in /proc/sys/net/ipv4/conf/*/rp_filter ; do
+#   echo 2 > $i
+#done
+
+# From http://lartc.org/lartc.html
+#  You need to set this if you use dial-on-demand with a dynamic
+#  interface address. Once your demand interface comes up, any
+#  local TCP sockets which havent seen replies will be rebound
+#  to have the right address. This solves the problem that the
+#  connection that brings up your interface itself does
+#  not work, but the second try does.
+echo 1 > /proc/sys/net/ipv4/ip_dynaddr
+
+# From http://lartc.org/lartc.html
+#  On Linux 2.4, you may need to execute
+echo 1 > /proc/sys/net/ipv4/ip_nonlocal_bind
+#  before being able to send out unsolicited ARP messages! (with arping)
+
+# Start logging daemons
+#  Check if we need to send log messages to a logging host.
+if [ -f /WFIO/loghost ]
+then
+    LOG_REMOTE="-L -R `cat /WFIO/loghost`"
+fi
+# syslogd keeps our log messages in a circular memory buffer.
+#  The size is important.  Envoy assumes that it will be < 32K.
+#  If we increase the size of the buffer beyond 32K, Envoy
+#  will need to be modified.
+syslogd -C 20K -m 0 $LOG_REMOTE
+# klogd retrieves log messages from the kernel, and feeds them
+#  to syslogd.
+klogd -c 8
+# USB host support
+mkdir /var/sys
+mkdir /var/usb_mount
+mount -t sysfs none /var/sys
+
+if [ -f /bin/usermode-agent ]
+then
+    /bin/usermode-agent&
+fi
+
+exit 

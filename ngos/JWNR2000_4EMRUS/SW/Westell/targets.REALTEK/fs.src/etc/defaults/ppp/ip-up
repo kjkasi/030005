@@ -1,0 +1,99 @@
+#!/bin/sh
+
+ECHO="logger -t ip-up[$$] -p daemon.NOTICE"
+
+$ECHO "$IFNAME: connected: local=$IPLOCAL, remote=$IPREMOTE"
+
+IPTABLES=/sbin/iptables
+PPPDIR=/var/etc/ppp
+RESOLV_CONF=/var/etc/resolv.conf
+DOMAINS_FILE=/var/etc/domains
+SERVERS_FILE=/var/etc/nameservers
+
+# Parameters passed to this script:
+# $DEVICE $IFNAME $IPLOCAL $IPREMOTE $PEERNAME
+# $SPEED $ORIG_UID $PPPLOGNAME
+# $CONNECT_TIME $BYTES_SENT $BYTES_RCVD $LINKNAME $DNS1 $DNS2
+DEFAULTROUTEIP=
+PEERDNS=FALSE
+
+while read TOKEN
+do
+	if [ "X$TOKEN" = "Xdefaultroute" ]; then
+		route delete default gw 0.0.0.0
+		route add default gw $IPREMOTE dev $IFNAME
+		DEFAULTROUTEIP=$IPREMOTE
+		$ECHO "$IFNAME: default route: $IFNAME/$IPREMOTE"
+	fi
+
+	if [ "X$TOKEN" = "Xusepeerdns" ]; then
+	    PEERDNS=TRUE
+	fi
+done < $PPPDIR/options.$LINKNAME
+
+# Handle resolv.conf
+#
+USERDNS=`/bin/dnsisset`
+
+if [ "$PEERDNS" = "TRUE" -a "$USERDNS" = "FALSE" ]; then
+	echo -n > $RESOLV_CONF
+	echo -n > $SERVERS_FILE
+	echo -n > $DOMAINS_FILE
+
+	eval `/bin/setconfigresolv`
+
+	if [ "$DNO" != "0" ]
+	then
+		$ECHO "$IFNAME: name service domain: $DNO"
+		N=0
+		export TMP
+		while true
+		do
+			eval TMP=\$DOMAIN"$N"
+			echo "domain $TMP" >> $RESOLV_CONF
+			echo "domain $TMP" >> $DOMAINS_FILE
+			N=`expr $N + 1`
+			if [ "$N" = "$DNO" ]
+			then
+				break
+			fi
+		done
+	fi
+
+	if [ "$SNO" != "0" ]
+	then
+		$ECHO "$IFNAME: name service search: $SNO"
+		N=0
+		export TMP
+		while true
+		do
+			eval TMP=\$SEARCH"$N"
+			echo "search $TMP" >> $RESOLV_CONF
+			echo "search $TMP" >> $DOMAINS_FILE
+			N=`expr $N + 1`
+			if [ "$N" = "$SNO" ]
+			then
+				break
+			fi
+		done
+	fi
+
+	if [ -n "$DNS1" ]
+	then
+	    $ECHO "$IFNAME: nameserver: $DNS1"
+	    echo nameserver $DNS1 >> $RESOLV_CONF
+	    echo nameserver $DNS1 >> $SERVERS_FILE
+	fi
+
+	if [ -n "$DNS2" ]
+	then
+	    $ECHO "$IFNAME: nameserver: $DNS2"
+	    echo nameserver $DNS2 >> $RESOLV_CONF
+	    echo nameserver $DNS2 >> $SERVERS_FILE
+	fi
+
+	# Signal the network manager
+	/bin/netmessage setcurrentdnsserver ""
+fi
+
+exit 0

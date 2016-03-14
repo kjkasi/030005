@@ -1,0 +1,21 @@
+1. Get lzma427.tar.bz2 (www.7-zip.org) and uncompress it to lzma427 directory.
+2. Apply the patch ../lzma427_zlib.patch
+3. cd SRC/7zip/Compress/LZMA_Lib
+4. make
+
+5. uncompress squashfs2.2.tar.bz2
+6. cd squashfs2.2/squashfs-tools
+7. Make the following changes in the makefile
+	Include the pathname in which zlib with lzma support is present.
+	add -lstdc++ and -llzma
+8. make mksquashfs-lzma
+
+
+Ref: http://www.beyondlogic.org/nb5/squashfs_lzma.htm
+
+lzma427 SDK is not compatible with the 2.4 squashfs lzma patch applied to the kernel. So, Lzma406 SDK is used.
+
+--kishore
+
+
+

@@ -1,0 +1,377 @@
+#! /bin/sh
+
+# send stdout/stderr to the console
+#exec 1> /dev/console
+#exec 2> /dev/console
+
+
+case "$INTERFACE" in
+	7\/*\/*) ;; # PRINTERs
+	8\/*\/*);;  # USB MASS STORAGE DRIVEs
+	""|usb?|wifi*|dsl*|wl*|cpcs*|atm*|eth*|ppp*|nas*|br*) exit 0;;
+	*) logger -s -p 5 hotplug does not support interface=$INTERFACE; exit 0;;
+esac
+
+
+# wait for lock to be free
+while [ -s /var/run/hotplug ]
+do
+	usleep 500000
+done
+
+
+if [ -s /var/run/hotplug ]
+then
+	return
+else
+	echo $PID > /var/run/hotplug
+	trap 'rm -f /var/run/hotplug' 0
+fi
+
+
+
+
+my_name=mountUsb_script
+mount_dir=/var/ftp/usb_mount
+drive=sd
+one=1	
+asterisk=*
+dlnaconf_file=/var/tmp/minidlna.conf
+
+
+fatal() {
+	logger $my_name: fatal  error: $*
+	rm -f  /var/run/hotplug
+	exit 255 
+}
+
+#logger -s -p 5 INTERFACE=$INTERFACE
+#logger -s -p 5 TYPE=$TYPE
+#logger -s -p 5 DEVICE=$DEVICE
+#logger -s -p 5 SD=$SD
+#logger -s -p 5 SERIAL=$SERIAL
+#logger -s -p 5 MFG=$MFG
+#logger -s -p 5 MDL=$MDL
+#logger -s -p 5 MINOR=$MINOR
+#logger -s -p 5 PRODUCT=$PRODUCT
+#logger -s -p 5 ACTION=$ACTION
+#logger -s -p 5 MODALIAS=$MODALIAS
+#logger -s -p 5 NOUPDATE=$NOUPDATE
+
+
+if [ "$ACTION" = "add" ] ; then
+		
+	found1=0
+	send_update=0
+
+
+	case "$INTERFACE" in
+	7/*/*) # PRINTERs
+		logger -s -p 5 $0:  USB PRINTER $INTERFACE device $DEVICE minor $MINOR connected
+
+		# mount the usbfs if it doesn't yet exist
+		
+		if [ ! -n "$(mount|grep usb)" ]
+		then
+			mount -t usbfs none /proc/bus/usb
+		fi
+
+		# check for any usblp devices
+		if [ -n "$(cat /proc/bus/usb/devices|grep Driver=usblp)" ]
+		then
+			found1=1
+		fi
+		# add usb printer device
+		if [ "$MINOR" -gt "-1" -a "$MINOR" -lt "10" ]
+		then
+			logger -s -p 5 $0: adding usb printer device lp$MINOR
+			# test the return code of 'mknod' because new devices get added with a default
+			# MINOR of zero.  The kernel has been patched to re-call hotplug once the actual
+			# MINOR has been set.  So, if mknod fails because zero is already being used just
+			# exit.  It will get called again with the next available MINOR.
+			#mknod /var/dev/usblp$MINOR c 180 $MINOR 2>/dev/null;rc=$?
+
+			mkdir -m 755 -p /var/usb
+			mknod -m 660 /var/usb/lp$MINOR c 180 $MINOR 2>/dev/null;rc=$?
+
+			if [ $rc = 1 ]
+			then
+				fatal mknod /var/usb/lp$MINOR failed
+				 exit 0;
+			fi
+
+			logger -s -p 5 $rc:Invoking StartPrintServer with $MFG and $MDL and $SERIAL and $MINOR 
+
+			startPrintServer "$MFG" "$MDL" "$SERIAL" "$MINOR" 
+		else
+			logger -s -p 4 $0:  only 10 printers are supported, minor device $MINOR being ignored
+		fi
+		;;
+
+	8/*/*)  #USB MASS STORAGE DEVICES
+		logger -s -p 5 $0: USB STORAGE DEVICE $INTERFACE device $DEVICE minor $MINOR connected
+		
+		#echo "Attempting to find mount block"
+
+		if [ "$(cfg_read UsbMountConfig.0.Enabled | cut -d "=" -f 2 | cut -d "'" -f 2)" = "0" ]
+		then
+		exit 0
+		fi
+
+		while [ ! -d /var/sys/block/sd[a-z] ]
+		do
+			usleep 500000
+		done
+
+                for drive in sda sdb sdc sdd; do
+                        usleep 4000000
+                if [ ! -d /var/sys/block/$drive ]; then
+                        usleep 2000000
+                fi
+
+		if [ -d /var/sys/block/$drive ];then 
+			# tell the disk_mgmt app to update its info
+			# without a mount block the disk_mgmt app can't get any info
+			send_update=1
+                        usleep 500000
+			cd /var/sys/block
+			cd /var/sys/block/$drive
+		else
+			continue
+		fi
+
+
+		while [ ! -d $drive[0-9] ]
+		do
+			usleep 500000
+		done
+		
+		 for number in 1 2 3 4; do
+
+		 partition=$drive$number
+
+                   # make sure the partition is not already mounted
+                   if [ -f $partition/dev -a -z "$(mount|grep $partition)" ]
+                   then
+			# this set seems to be diferent than the bash set 
+			# it is usable for this, though...
+			parts=`cat $partition/dev`
+			IFS=: set $parts
+			mknod /var/dev/$partition b $*
+			# try vfat first....linux mounts vfat as 'msdos' by default, with
+			# all the long filename translations
+			signature="`cat device/vendor``cat device/model``cat size`$number"
+			size="`cat size`"
+
+                        # determine our mount point
+			mount_base = /var/dev/$partition
+
+			old_point=""
+			empty_point=""
+			good_point=""
+                        for point in 0 1 2 3
+                        do
+                             old_signature="`cfg_read CIFSShares | grep $point.Key | cut -d "=" -f 2 | cut -d "'" -f 2`"
+			     if [ ! -z "$old_signature" -a  "$old_signature" = "$signature" ]
+			     then
+				old_point=$point
+				echo "found old $point"
+				break
+			     fi
+
+                             if [ "$old_signature" = "" ]
+                             then
+				if [ -z "$empty_point" -a -z "$(mount|grep $mount_dir$point)" ]
+				then
+				echo "found empty $point"
+                                empty_point=$point
+				fi
+                             fi
+			     
+                             if [ -z "$(mount|grep $mount_dir$point)" -a -z "$good_point" ]
+                             then
+				echo "found good $point"
+                                good_point=$point
+                             fi
+                        done
+
+			# Set the most proper point to mount_point
+			if [ ! -z "$old_point" ]
+			then
+			    mount_point=$old_point
+			elif [ ! -z "$empty_point" ]
+			then
+			    mount_point=$empty_point
+			elif [ ! -z "$good_point" ]
+			then
+			    mount_point=$good_point
+			fi
+
+                        if [ -z "$mount_point" ]
+                             then
+                                logger -s -p 4 $0: All mount points used. Not mounting partition $partition
+                                break;
+                        fi
+
+
+			echo "the final point $mount_point"
+			
+                        ntfs-3g /var/dev/$partition $mount_dir$mount_point
+                        if [ "`mount|grep usb_mount$mount_point`" ] ; then
+                                found1=1
+				file_type="NTFS"
+				file_size="`df -h|grep usb_mount$mount_point|awk '{print $2}'`"
+		     		cfg_write CIFSShares.$mount_point.Key=$signature
+		     		cfg_write CIFSShares.$mount_point.Size=$file_size
+		     		cfg_write CIFSShares.$mount_point.Filetype=$file_type
+                                logger $my_name: Successfully mounted drive to $mount_dir
+                        continue
+                        fi
+
+			mount -t vfat /var/dev/$partition $mount_dir$mount_point
+			if [ "`mount|grep usb_mount$mount_point`" ] ; then
+				found1=1
+				file_type="FAT"
+				file_size="`df -h|grep usb_mount$mount_point|awk '{print $2}'`"
+		     		cfg_write CIFSShares.$mount_point.Key=$signature
+		     		cfg_write CIFSShares.$mount_point.Size=$file_size
+		     		cfg_write CIFSShares.$mount_point.Filetype=$file_type
+				logger $my_name: Successfully mounted drive to $mount_dir
+			continue
+			fi
+
+			# Try mounting with unspecified filesystem
+			mount /var/dev/$partition $mount_dir$mount_point
+			if [ "`mount|grep usb_mount$mount_point`" ] ; then
+				found1=1
+				file_size="`df -h|grep usb_mount$mount_point|awk '{print $2}'`"
+		     		cfg_write CIFSShares.$mount_point.Key=$signature
+		     		cfg_write CIFSShares.$mount_point.Size=$file_size
+		     		cfg_write CIFSShares.$mount_point.Filetype=$file_type
+				logger $my_name: Successfully mounted drive to $mount_dir
+			continue
+			fi
+
+		fi
+		done
+		done
+
+		if [ "$(cfg_read MiniDLNAServer.0.Enabled | cut -d "=" -f 2 | cut -d "'" -f 2)" = "1" ] ; then 
+	   	    kill "`cat /var/run/minidlna.pid`"
+		    awk '/db_dir/ {$1 = "db_dir='$mount_dir''$mount_point'"} {print $0}' $dlnaconf_file > $dlnaconf_file'.bak'
+		    mv $dlnaconf_file'.bak' $dlnaconf_file
+		    usleep 1000000
+		    if [ "$(cfg_read MiniDLNAServer.0.AutoScan | cut -d "=" -f 2 | cut -d "'" -f 2)" = "1" ] ; 			  then 
+	   	       /bin/minidlna -f $dlnaconf_file -R -P /var/run/minidlna.pid
+		    else
+	   	       /bin/minidlna -f $dlnaconf_file -P /var/run/minidlna.pid
+		    fi
+		fi
+		;;
+	esac
+	
+	if [ $found1 -gt 0 ]
+	then
+		# LED on
+		while [ ! -n "$(lsmod|grep gpio)" ]
+		do
+			# wait for gpio to be loaded
+			usleep 500000
+		done
+		gpioctl -e UsbUp
+	fi
+
+	# tell the disk manager app to update its info
+	if [ $send_update -gt 0 -a "$NOUPDATE" != 1 ]
+	then
+		cfg_msg diskInserted > /dev/null 2>&1
+	fi
+
+elif [ "$ACTION" = "remove" ] 
+ then
+	found1=0
+
+
+	case "$INTERFACE" in
+	7/*/*) # PRINTERs
+		logger -s -p 5 $0: USB PRINTER $INTERFACE device $DEVICE minor $MINOR disconnected
+
+		# remove usb printer device
+		if [ $MINOR -gt "-1" -a $MINOR -lt "10" ]
+		then
+			logger -s -p 5 $0: removing usb printer device usblp$MINO
+
+			rm /var/usb/lp$MINOR
+			rm -r -f /var/usb
+			umount /proc/bus/usb/			
+			stopPrintServer $SERIAL
+
+		else
+			logger -s -p 4 $0: only 10 printers are supported, minor device $MINOR being ignored
+		fi
+		;;
+
+
+	8/*/*) # DRIVEs
+		logger -s -p 5 $0: USB STORAGE DEVICE $INTERFACE device $DEVICE minor $MINOR disconnected
+                for sdrive in sda sdb sdc sdd; do
+
+		send_update=1
+		#umount -lf $mount_dir
+                # See if this device is mounted 
+
+		if [ ! -d /var/sys/block/$sdrive ]
+                #if [ "$(mount|grep $sdrive)" ]
+                then
+                        logger -s -p 4 $0: unmounting device $sdrive
+                        # get the mount point(s) of this device
+                        points=$(mount | grep $sdrive | cut -d " " -f 3)
+                        for point in $points
+                        do
+                                echo "Trying to unmount $point"
+                                umount $point
+                                if [ -n "$(mount|grep $point)" ]
+                                then
+                                        logger -s -p 3 $0: failed to unmount drive from $point going to force unmount
+                                        umount -lf $point
+                                else
+                                        logger -s -p 5 $0: unmounted drive from $point
+                                fi
+                                rm -rf /var/dev/$sdrive$asterisk
+                        done
+                fi
+		done
+                logger $my_name: unmounted drive from $mount_dir		
+		;;		
+	esac
+
+	# if no printer files then assume a possible plug-out case
+	# check for any usblp devices
+	if [ -n "$(cat /proc/bus/usb/devices|grep Driver=usblp)" ]
+	then
+		found1=1
+	fi 
+
+	# See if we have any disks mounted
+	if [ "$(mount|grep $mount_dir)" ]
+	then
+		found1=1
+	fi
+	
+	# Turn the LED off if we don't have any printers or disks
+	if [ $found1 = 0 ]
+	then
+		# LED off
+		gpioctl -e UsbDown
+	fi
+
+	# tell the disk manager app to update its info
+	if [ $send_update -gt 0 -a "$NOUPDATE" != 1 ]
+	then
+		cfg_msg diskRemoved > /dev/null 2>&1
+	fi
+else
+	logger -s -p 4 $0: action=$ACTION undefined	
+fi
+rm -f  /var/run/hotplug
+

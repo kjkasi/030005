@@ -1,0 +1,8 @@
+.EXPORT_ALL_VARIABLES:
+CFLAGS += -D_BYTE_ORDER=_BIG_ENDIAN
+
+all: 
+	$(MAKE)
+
+clean:
+	$(MAKE) clean

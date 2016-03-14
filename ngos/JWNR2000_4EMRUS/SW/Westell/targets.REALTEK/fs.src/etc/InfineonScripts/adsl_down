@@ -1,0 +1,19 @@
+#!/bin/sh
+
+#/etc/rc.d/init.d/adsl_link_status_update 0
+
+#Sumedh-For specific bords only
+if [ "1$IFX_CONFIG_CHINA_MKT_1" = "11" ]; then 
+#	/usr/sbin/ledconfig down
+	/usr/sbin/led_control -l 2 on
+	/usr/sbin/led_control -l 4 off
+else
+	/usr/sbin/led_control -l 2 on
+	/usr/sbin/led_control -l 4 off
+fi
+#706121 start - set status down and raise link down event
+echo "0" > /tmp/adsl_status
+
+# call event utility for adsl link up
+/usr/sbin/ifx_event_util "ADSL_LINK" "DOWN"
+#706121 end

@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# script to start filter detection as soon as possible at boot
+ 
+# the diag app looks for this file to 
+# determine if MMInit started filterdetection at boot
+# this script creates the file if filter detection was started. 
+filterfile=/var/tmp/bootfilterdetect
+
+# Check to see if app disabled boot filter detection
+# by creating a file /WFIO/inhibit_filter_detection.txt
+bypassfilterstart=0
+
+if [ -f /WFIO/inhibit_filter_detection.txt ]; then
+    echo "FILTER DETECTION BYPASSED"
+    bypassfilterstart=1
+else
+    # wait for dsl_cpe0_cmd, this is created when in MMInit script
+    # by /bin/dsl_cpe_control
+    COUNTER=0
+    while [  $COUNTER -lt 10 ] && [ ! -e /tmp/pipe/dsl_cpe0_cmd ]; do
+     let COUNTER=COUNTER+1 
+     echo "Waiting for dsl_cpe0_cmd"
+     sleep 1
+    done
+fi
+
+if [ $bypassfilterstart -eq 0 ] && [ ! -e /tmp/pipe/dsl_cpe0_cmd ]; then
+    echo "ERROR:STARTING FILTER DSL PIPE MISSING"
+fi
+
+if [ $bypassfilterstart -eq 0 ] && [ -e /tmp/pipe/dsl_cpe0_cmd ]; then
+    echo "STARTING FILTER DETECTION"
+    echo "StartFilterDetection" > $filterfile
+    #put XCVR into auto filter detection
+    /etc/InfineonScripts/dsl_cpe_pipe.sh g997lacs 4 0 0 >> $filterfile
+    #re-init xcvr to start filter detection 
+    /etc/InfineonScripts/dsl_cpe_pipe.sh acs 2 >> $filterfile
+fi
+    

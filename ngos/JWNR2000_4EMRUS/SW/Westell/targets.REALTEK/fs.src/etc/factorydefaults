@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# Reset to default configuration.
+#
+# Called from the gpioctl application when the "reset to defaults"
+# switch is held down.
+#
+# Right now, all this means is that we're deleting the current
+# save config file.  When .INI files are added, this may need
+# to be smarter.
+
+
+rm -f /WFIO/current.cfg

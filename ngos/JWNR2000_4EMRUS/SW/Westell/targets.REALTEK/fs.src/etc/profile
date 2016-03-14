@@ -1,0 +1,7 @@
+# /etc/profile: system-wide .profile file for the Bourne shells
+
+PATH=/bin:/sbin:/usr/bin
+export PATH
+KERNEL_REL=`uname -r`
+echo
+

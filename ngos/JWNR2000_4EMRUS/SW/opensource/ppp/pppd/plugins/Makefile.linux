@@ -1,0 +1,65 @@
+#CC	= /opt/toolchains/gcc-3.3.x/toolchain_mips/bin/mips-uclibc-gcc
+#CC	= gcc
+COPTS	= -Os
+CFLAGS	= $(COPTS) -I.. -I../../include  -I$(KERNEL_DIR) -fPIC
+LDFLAGS	= -shared
+INSTALL	= install -o root
+
+ifdef CONFIG_WSTL_AMAZONSE
+CFLAGS += -DCONFIG_WSTL_AMAZONSE
+endif
+ifeq ($(BUILD_LANTIQ_UGW_5_1),y)
+CFLAGS += -DBUILD_FROM_LTQ_APPS
+endif
+SUBDIRS := rp-pppoe 
+
+ifdef BUILD_L2TP
+SUBDIRS += pppol2tp
+endif
+# Uncomment the next line to include the radius authentication plugin
+# SUBDIRS += radius
+PLUGINS := minconn.so passprompt.so passwordfd.so
+
+# Westell Start
+ifdef BUILD_BRCM_ATMCTL
+PLUGINS+= pppoatm.so
+endif
+ifdef CONFIG_WSTL_AMAZONSE  
+PLUGINS+= pppoatm.so
+endif
+# Westell End
+
+# include dependencies if present
+ifeq (.depend,$(wildcard .depend))
+include .depend
+endif
+
+all:	$(PLUGINS)
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d all; done
+
+# Westell Start
+# Override the build process so we can link against the atm library.
+pppoatm.so: pppoatm.c ../../../atm2684/atm/lib/libatm.a
+	$(CC) -c $(CFLAGS) -I../../../atm2684/atm/lib pppoatm.c
+	$(LD) -shared -o pppoatm.so pppoatm.o ../../../atm2684/atm/lib/libatm.a
+# Westell End
+
+%.so: %.c
+	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
+
+VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
+LIBDIR	= $(DESTDIR)/usr/lib/pppd/$(VERSION)
+
+install: $(PLUGINS)
+	$(INSTALL) -d $(LIBDIR)
+	$(INSTALL) $? $(LIBDIR)
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d INSTALL=$(INSTALL) \
+				LIBDIR=$(LIBDIR) install; done
+
+clean:
+	rm -f *.o *.so *.a
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d clean; done
+
+depend:
+	$(CPP) -M $(CFLAGS) *.c >.depend
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d depend; done

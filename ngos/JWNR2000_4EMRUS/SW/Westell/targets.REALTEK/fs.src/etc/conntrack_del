@@ -1,0 +1,16 @@
+ 
+if [ $# -ne 3 ];
+then
+echo "Error:Missing command line arguments"
+exit 1
+fi
+
+port_start=$2;
+port_end=$3;
+
+while [ $port_start -le $port_end ]
+do
+  /sbin/conntrack -D -p $1 --dport $port_start
+  port_start=`expr $port_start + 1`
+done
+

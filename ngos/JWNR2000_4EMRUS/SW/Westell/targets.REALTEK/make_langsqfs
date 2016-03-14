@@ -1,0 +1,6 @@
+#!/bin/bash
+
+../makeDevs $1
+
+$HOSTTOOLS_DIR/mksquashfs-lzma $STRIPFS $ROOTFS_IMG -comp lzma -always-use-fragments -noappend
+$HOSTTOOLS_DIR/mksquashfs-lzma $LANGFS $LANGFS_IMG -comp lzma -always-use-fragments -noappend

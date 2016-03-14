@@ -1,0 +1,11 @@
+#!/bin/sh
+
+PATH=/sbin:/bin
+export PATH
+
+# The following lines are not needed for CenturyTel build, only required for CBT build
+/etc/InfineonScripts/dsl_cpe_pipe.sh asecs /etc/InfineonScripts/adsl.scr
+/etc/InfineonScripts/dsl_cpe_pipe.sh acos 0 1 0 1 1 1
+/etc/InfineonScripts/dsl_cpe_pipe.sh acs 2
+
+exit 

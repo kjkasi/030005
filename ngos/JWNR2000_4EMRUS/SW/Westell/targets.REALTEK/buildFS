@@ -1,0 +1,782 @@
+#! /bin/sh
+
+FS_DIR=$1
+
+COPY="cp -af"
+MOVE="mv"
+LINK="ln -fs"
+MKDIR="mkdir -p"
+RM="rm -rf"
+
+# The creation of the filesystem now happens in the top-level
+# Makefile, before the applications are built (so that they can be
+# installed into it.)
+
+cd $FS_DIR
+
+# Create the missing (empty) directories
+$MKDIR dev
+$MKDIR dev/pts
+$MKDIR mnt
+$MKDIR proc
+$MKDIR var
+$MKDIR WFIO
+if [ "$BUILD_LANGUPG_FEATURE" == "y" ]
+then
+$MKDIR langs
+fi
+
+if [ "$NO_DSL_PORT" == "" ]
+then
+	if [ -f $INC_ADSLDRV_PATH/ModemHWE.$ADSL_FIRMWARE_VER.bin ]
+	then
+	  $MKDIR  etc/adsl
+	  $COPY $INC_ADSLDRV_PATH/ModemHWE.$ADSL_FIRMWARE_VER.bin   etc/adsl
+          $LINK /etc/adsl/ModemHWE.$ADSL_FIRMWARE_VER.bin etc/adsl/ModemHWE.bin
+	fi
+fi
+
+# Create symbolic links
+$LINK /var/tmp		tmp
+$LINK /var/dev/log	dev/log
+#Netgear Change
+if [ "$PROFILE" == "B90-755010" -o "$PROFILE" == "B90-755015" -o "$PROFILE" == "B90-755018" -o "$PROFILE" == "B90-755022" -o "$PROFILE" == "B90-755025" -o "$PROFILE" == "B90-755044" -o "$PROFILE" == "B90-755060" -o "$PROFILE" == "B90-755011" ]
+then
+$LINK /var/usb	 	dev/usb
+$LINK /var/usb/lp0	dev/usb/lp0
+fi
+
+if [ ! "$PROFILE" == "A90-620025" -a ! "$PROFILE" == "B90-755025" ]
+then
+    $RM etc/init.d/StartFilterDetection
+fi
+#Netgear Change
+if [ ! "$PROFILE" == "B90-755022" -a ! "$PROFILE" == "B90-755044" -a ! "$PROFILE" == "B90-755060" -a ! "$PROFILE" == "B90-755011" ]
+then
+    $RM sbin/Uplink*
+fi
+
+$LINK /var/etc/passwd	etc/passwd
+$LINK /var/etc/group  	etc/group
+$LINK /var/etc/dnsmasq.conf	etc/dnsmasq.conf
+$LINK /var/etc/dnsmasq.leases	etc/dnsmasq.leases
+$LINK /var/etc/hosts	etc/hosts
+$LINK /var/etc/TZ	etc/TZ
+
+# Temp until I remove init from busybox
+$RM   linuxrc
+$LINK /bin/ModemMgmt  linuxrc
+$RM   sbin/init
+$LINK /bin/ModemMgmt  sbin/init
+
+# Copy modules into root filesystem
+$COPY $PROFILE_DIR/modules/lib ./
+$RM   ./lib/modules/*/build
+
+# Copy libraries
+
+# These are the core required libraries.
+$COPY $LIBDIR/*.so*  lib/
+# We do not use C++, so dump the library
+$RM lib/libstdc\+\+.*
+
+# And dump other libraries that we don't need
+$RM lib/libform* lib/libpanel* lib/libmenu* lib/libcurses* lib/libncurses* 
+
+if [ -d $TOOLCHAIN/$CROSS_COMPILE/target_utils ]
+then 
+  $COPY $TOOLCHAIN/$CROSS_COMPILE/target_utils/*  sbin/
+fi
+
+# libxml.so is used by FTM, the webserver, ...
+#$COPY $WESTELL_APP_DIR/libs/westellXML/libxml.so lib/libxml.so
+
+# libIni.so is used by FTM, Management utility ...
+#$COPY $WESTELL_APP_DIR/libs/IniParser/libIni.so lib/libIni.so
+
+# libupgrade.so is used by Envoy and provided by the flash manager app.
+#$COPY $WESTELL_APP_DIR/libs/upgrade/libupgrade.so lib/libupgrade.so
+
+# libftmshm.so is used by modemmgmt, wireless, and mgmtutil.
+#$COPY $WESTELL_APP_DIR/libs/westellFTM/libftmshm.so lib/libftmshm.so
+
+if [ "$BUILD_WSTL_ATT_DSL_REINIT" == "y" ] 
+then
+# libdslreinit.so is used by ModenMgmt,net_mgr,GUI and gpioctl for DSLReInit cause.
+$COPY $WESTELL_APP_DIR/libs/DSLReInit/libdslreinit.so lib/libdslreinit.so
+fi
+
+#Copy Over web Content
+echo Copying Over web Content....
+$RM    web
+$MKDIR web
+$COPY $WEB_CONTENT_DIRECTORY/* web 
+$RM web/ATT_Versalink
+$RM web/imagesATTVersalink/
+$RM web/htmlV_Generic_7501
+
+case "$PROFILE" in
+	G90-610025 | A90-620025 | A90-620010 | B90-755025 )
+		if [ "$INCLUDE_ATT_GUI" == 1 ]
+                then
+                       $RM web/htmlFireball
+                       $RM web/imagesV
+                       $RM web/htmlV
+                       $RM web/imagesBV
+                       $RM web/verizon
+		       $RM web/htmlV_Generic/
+		       $RM web/htmlV_Generic_7501/
+		       $RM web/images/
+		       $RM web/imagesFireball/
+                       $RM web/htmlV_Fairpoint/
+                       $RM web/imagesFairpoint/
+		       $RM web/htmlV_Frontier/
+                       $RM web/imagesFrontier/
+                       $RM web/javascript
+
+                       if [ "$PROFILE" == "B90-755025" ]
+             	       then
+                       $COPY web/htmlV_ATT_Versalink/ web/html/
+                       $COPY web/htmlV_ATT_Versalink/HiddenTR069Log.htm web/
+                       $COPY web/imagesATT/favicon.ico web/
+                       else
+		       $COPY web/htmlV_ATT/ web/html/
+                       $COPY web/htmlV_ATT/HiddenTR069Log.htm web/
+                       $COPY web/imagesATT/favicon.ico web/
+                       fi
+                       $RM web/html/HiddenTR069Log.htm
+                       $RM web/imagesATT/favicon.ico
+		       $RM web/htmlV_ATT
+		       $RM web/htmlV_ATT_Versalink
+                       
+                       
+                       # For Memory Optz
+                       # remove unecessary images
+                       sh ../../delImages.sh "$PROFILE"
+
+		fi
+		;;
+
+	G90-610018 | G90-610015 | G90-610045 | B90-755015 | B90-755018 | B90-755044 )
+                sh ../../delImages.sh "$PROFILE"
+                if [ "$INCLUDE_VZ_GUI" == 1 ]
+		then
+			$RM web/imagesFireball
+			$RM web/htmlFireball
+                        $RM web/images
+                        $RM web/htmlV_Generic
+                        $RM web/imagesV 
+			$RM web/htmlV_ATT
+			$RM web/htmlV_ATT_Versalink
+ 			$RM web/imagesATT
+                        
+                        if [ "$PROFILE" == "G90-610018" -o "$PROFILE" == "B90-755018" ]
+                        then
+			$RM web/verizon/redirect.asp
+  			$RM web/verizon/redirect.htm				
+                        $RM web/htmlV
+                        $RM web/imagesBV
+                        $RM web/htmlV_Frontier
+                        $RM web/imagesFrontier                        
+                        $COPY web/htmlV_Fairpoint/HiddenTR069Log.htm web/
+                        $RM web/htmlV_Fairpoint/HiddenTR069Log.htm
+			$RM web/imagesFairpoint/MyGateway_top.gif
+                        cd web
+	                $MOVE htmlV_Fairpoint/ htmlV
+                  
+			# For Memory Optz
+                        $MOVE imagesFairpoint/ imagesV    
+                        
+            elif [ "$PROFILE" == "G90-610045" ]
+             then
+                       $RM web/htmlV
+                       $RM web/imagesBV
+                       $RM web/htmlV_Fairpoint
+                       $RM web/imagesFairpoint                       
+
+                       $COPY web/htmlV_Frontier/HiddenTR069Log.htm web/
+                       $RM web/htmlV_Frontier/HiddenTR069Log.htm
+                       $RM web/imagesFrontier/MyGateway_top.gif
+                       cd web/
+
+                       #LANWBA hidden page.
+                       $MKDIR frontier/
+                       $COPY htmlV_Frontier/redirect.asp frontier/redirect.asp
+                       $COPY htmlV_Frontier/redirect.htm frontier/redirect.htm
+                       $RM verizon/redirect.asp
+                       $RM verizon/redirect.htm
+                       $RM htmlV_Frontier/redirect.asp
+                       $RM htmlV_Frontier/redirect.htm
+
+                       $MOVE htmlV_Frontier/ htmlV
+
+                       # For Memory Optz
+                         $MOVE imagesFrontier/ imagesV
+
+                 elif [ "$PROFILE" == "B90-755044" ]
+                 then
+                        $RM web/htmlV
+                        $RM web/imagesBV
+                        $RM web/htmlV_Fairpoint
+                        $RM web/imagesFairpoint
+                        $RM web/htmlV_Generic_7501
+
+                        $COPY web/htmlV_Frontier/HiddenTR069Log.htm web/
+                        $COPY web/htmlV_Frontier/styles.css web/css/styles.css
+
+                        $COPY web/htmlV_Frontier/adv_datentime_white.asp web/htmlV_Frontier/adv_datentime.asp
+                        $COPY web/htmlV_Frontier/adv_dns_server_white.asp web/htmlV_Frontier/adv_dns_server.asp
+                        $COPY web/htmlV_Frontier/adv_routing_white.asp web/htmlV_Frontier/adv_routing.asp
+                        $COPY web/htmlV_Frontier/fw_port_forwarding_white.asp web/htmlV_Frontier/fw_port_forwarding.asp
+                        $COPY web/htmlV_Frontier/fw_port_forwarding_edit_white.asp web/htmlV_Frontier/fw_port_forwarding_edit.asp
+                        $COPY web/htmlV_Frontier/net_home_EditConnect_white.asp web/htmlV_Frontier/net_home_EditConnect.asp
+                        $COPY web/htmlV_Frontier/index_white.asp web/htmlV_Frontier/index.asp
+                        $COPY web/htmlV_Frontier/indexHidden_white.asp web/htmlV_Frontier/indexHidden.asp
+                        $COPY web/htmlV_Frontier/mynetwork_conn_white.asp web/htmlV_Frontier/mynetwork_conn.asp
+                        $COPY web/htmlV_Frontier/autopvc_white.asp web/htmlV_Frontier/autopvc.asp
+                        $COPY web/htmlV_Frontier/autoconfig_white.asp web/htmlV_Frontier/autoconfig.asp
+                        $COPY web/htmlV_Frontier/wrls_basic_options_white.asp web/htmlV_Frontier/wrls_basic_options.asp
+                        $COPY web/htmlV_Frontier/reset_white.asp web/htmlV_Frontier/reset.asp
+                        $COPY web/htmlV_Frontier/ResetDefault_white.asp web/htmlV_Frontier/ResetDefault.asp                      
+                        $COPY web/htmlV_Frontier/adv_restore_defaults_white.asp web/htmlV_Frontier/adv_restore_defaults.asp                      
+                        #$COPY web/htmlV_Frontier/adv_dynamic_dns_white.asp web/htmlV_Frontier/adv_dynamic_dns.asp
+
+                        $COPY web/imagesFrontier/westell_logo_white.jpg web/imagesFrontier/westell_logo_black.jpg
+                        $COPY web/imagesFrontier/gradientstrip_white.gif web/imagesFrontier/gradientstrip.gif
+                        $COPY web/imagesFrontier/ActionZone_white.gif web/imagesFrontier/ActionZone.gif
+                        $COPY web/imagesFrontier/MyNtwk_top_white.gif web/imagesFrontier/MyNtwk_top.gif
+                        $COPY web/imagesFrontier/MyGateway_top_white.gif web/imagesFrontier/MyGateway_top.gif
+
+                        $COPY web/imagesFrontier/cancel_white.gif web/imagesFrontier/cancel.gif
+                        $COPY web/imagesFrontier/delete_white.gif web/imagesFrontier/delete.gif
+                        $COPY web/imagesFrontier/explanation_point_white.jpg web/imagesFrontier/explanation_point.jpg
+                        $COPY web/imagesFrontier/i_d_unknown_off_white.gif web/imagesFrontier/i_d_unknown_off.gif
+                        $COPY web/imagesFrontier/i_d_usb_off_white.gif web/imagesFrontier/i_d_usb_off.gif
+                        $COPY web/imagesFrontier/i_d_wired_off_white.gif web/imagesFrontier/i_d_wired_off.gif
+                        $COPY web/imagesFrontier/i_d_wireless_off_white.gif web/imagesFrontier/i_d_wireless_off.gif
+                        $COPY web/imagesFrontier/utilities_white.jpg web/imagesFrontier/utilities.jpg
+
+                        $RM web/htmlV_Frontier/adv_datentime_white.asp
+                        $RM web/htmlV_Frontier/adv_dns_server_white.asp
+                        $RM web/htmlV_Frontier/adv_routing_white.asp
+                        $RM web/htmlV_Frontier/fw_port_forwarding_white.asp
+                        $RM web/htmlV_Frontier/fw_port_forwarding_edit_white.asp
+                        $RM web/htmlV_Frontier/net_home_EditConnect_white.asp
+                        $RM web/htmlV_Frontier/index_white.asp
+                        $RM web/htmlV_Frontier/indexHidden_white.asp
+                        $RM web/htmlV_Frontier/mynetwork_conn_white.asp
+                        $RM web/htmlV_Frontier/wrls_basic_options_white.asp
+                        $RM web/htmlV_Frontier/autopvc_white.asp
+                        $RM web/htmlV_Frontier/reset_white.asp
+                        $RM web/htmlV_Frontier/ResetDefault_white.asp
+                        $RM web/htmlV_Frontier/adv_restore_defaults_white.asp
+                        #$RM web/htmlV_Frontier/adv_dynamic_dns_white.asp
+                        
+                        $RM web/htmlV_Frontier/HiddenTR069Log.htm
+                        $RM web/imagesFrontier/MyModem_top.gif
+
+                        $RM web/imagesFrontier/ActionZone_white.gif
+                        $RM web/imagesFrontier/MyNtwk_top_white.gif
+                        $RM web/imagesFrontier/MyGateway_top_white.gif
+                        $RM web/imagesFrontier/westell_logo_white.jpg
+                        $RM web/imagesFrontier/gradientstrip_white.gif
+                        
+                        $RM web/imagesFrontier/cancel_white.gif
+                        $RM web/imagesFrontier/delete_white.gif
+                        $RM web/imagesFrontier/explanation_point_white.jpg
+                        $RM web/imagesFrontier/i_d_unknown_off_white.gif
+                        $RM web/imagesFrontier/i_d_usb_off_white.gif
+                        $RM web/imagesFrontier/i_d_wired_off_white.gif
+                        $RM web/imagesFrontier/i_d_wireless_off_white.gif
+                        $RM web/imagesFrontier/utilities_white.jpg
+                       
+                        cd web/
+
+                        #Lan WBA hidden page.
+                        #$MKDIR frontier/
+
+                        $COPY htmlV_Frontier/redirect_white.asp redirect.asp
+                        $COPY htmlV_Frontier/redirect_white.htm redirect.htm
+                        $MOVE htmlV_Frontier/TechSupport.asp ops.asp
+                        
+                        $RM verizon/redirect.asp
+                        $RM verizon/redirect.htm
+                        $RM htmlV_Frontier/redirect.asp
+                        $RM htmlV_Frontier/redirect_white.asp
+                        $RM htmlV_Frontier/redirect.htm
+                        $RM htmlV_Frontier/redirect_white.htm
+                        $RM htmlV_Frontier/styles.css
+
+                        $MOVE htmlV_Frontier/ htmlV
+
+                          # For Memory Optz
+                        $MOVE imagesFrontier/ imagesV
+
+                        else
+                        $RM web/htmlV_Frontier                        
+                        $RM web/imagesFrontier
+                        $RM web/htmlV_Fairpoint
+                        $RM web/imagesFairpoint 
+                        $COPY web/htmlV/HiddenTR069Log.htm web/
+                        $RM web/htmlV/HiddenTR069Log.htm
+			$RM web/imagesBV/MyGateway_top.gif
+
+                        # For Memory Optz
+                        cd web  
+                        $MOVE imagesBV/ imagesV    
+                        fi
+                        
+                        cd ../ 
+			
+			if [ "$BUILD_WSTL_VOIP" == "" ]
+			then
+				#Remove the phone images if VOIP is not supported to reduce the size of image
+				$RM web/imagesV/phone*.jpg
+				$RM web/htmlV/voice_settings_Lineone.asp
+				$RM web/htmlV/voice_settings_Linetwo.asp
+				$RM web/htmlV/voice_settings_Phone.asp
+				$RM web/htmlV/sys_traffic_voice.asp
+			fi			
+			if [ "$BUILD_WSTL_WIRELESS" == "" ]
+	                then
+	     	               echo Removing Wireless pages as Wireless feature is disabled
+        	       	       $RM web/htmlV/wrls_adv_options.asp
+			       $RM web/htmlV/wrls_advanced.asp
+	                       $RM web/htmlV/wrls_basic_options.asp
+	                       $RM web/htmlV/wrls_setup_adv_mac.asp
+	                       $RM web/htmlV/wrls_setup_adv_mac_add.asp
+	                       $RM web/htmlV/wrls_setup_adv_mode.asp
+	                       $RM web/htmlV/wrls_setup_adv_ssid.asp
+	                       $RM web/htmlV/wrls_setup_adv_wep.asp
+	                       $RM web/htmlV/wrls_setup_adv_wpa.asp
+	                       $RM web/htmlV/wrls_status.asp
+	                       $RM web/htmlV/wrls_wps.asp
+	                       $RM web/htmlV/wrls_wpsHidden.asp
+	                       $RM web/htmlV/wrls_wpsMain.asp
+			       $RM web/htmlV/wrls_secondary.asp
+		               $RM web/htmlV/sys_traffic_wireless.asp
+        	        fi
+			
+		else
+			if [ "$BUILD_WSTL_VOIP" == "" ]
+			then
+				#Remove the phone images if VOIP is not supported to reduce the size of image
+				$RM web/htmlFireball/voice_settings_Line1.asp
+				$RM web/htmlFireball/voice_settings_Line1_help.asp
+				$RM web/htmlFireball/voice_settings_Line2.asp
+				$RM web/htmlFireball/voice_settings_Line2_help.asp
+				$RM web/htmlFireball/voice_settings_Phone.asp
+				$RM web/htmlFireball/voice_settings_Phone_help.asp
+				$RM web/htmlFireball/maint_stats_Voice.asp
+				$RM web/htmlFireball/maint_stats_Voice_help.asp
+				$RM web/htmlFireball/Menus_voice.asp
+			fi
+			$RM web/imagesV
+			$RM web/htmlV
+                        $RM web/htmlV_Generic
+                        $RM web/htmlV_Fairpoint
+                        $RM web/imagesFairpoint 
+                        $RM web/htmlV_Frontier
+                        $RM web/imagesFrontier                        
+		fi
+
+               
+                if [ "$PROFILE" == "A90-750115" ]
+                then
+                        # Contents of RDM_extensions are moved to verizon
+                        $COPY web/verizon/RDM_extensions/* web/verizon/
+                fi
+                if [ "$PROFILE" == "G90-610015" ]
+                then
+                        # Contents of ProLine_extensions are moved to verizon
+                        $COPY web/verizon/ProLine_extensions/* web/verizon/
+                fi
+		;;
+#Netgear Change
+         G90-610010 | G90-610014 | G90-610022 | G90-610020 | G90-610060  | A90-620060  | G90-6100  | B90-755010 | JWNR2000v2 | JNR2000v2 | JWNR2000-40000S | B90-755022  | B90-755060 | B90-755011 )
+   			if [ "$PROFILE" == "JNR2000v2" -o "$PROFILE" == "JWNR2000v2" -o "$PROFILE" == "JWNR2000-40000S" ]
+                       then
+						echo Removing the extra files for JNR2000v2, JWNR2000-40000S and JWNR2000v2
+						$RM web/funcs_telstra.js
+						$RM web/top_telstra.js
+						$RM web/WLG_wireless_guest1.asp
+						$RM web/WLG_wireless_guestA1.asp
+						$RM web/advanced_home_ru.css
+						$RM web/langs/DEU.js
+						$RM web/langs/FRA.js
+			fi
+			
+			if [ "$BUILD_ADSL_UI" == "" ]
+                        then
+                        echo Removing the ADSL files
+						$RM web/_adsl_help.html
+						$RM web/VPI_VCI_setup.asp
+			fi
+			
+			if [ "$BUILD_MINIDLNA_UI" == "" ]
+                        then
+                        echo Removing the MINIDLNA files
+                        $RM web/dlna.js
+                        $RM web/DLNA_setup.asp
+                        $RM web/_DLNA_setup_help.html
+
+             fi
+
+			 if [ "$BUILD_USB_UI" == "" ]
+                        then
+                        echo Removing the USB files
+						$RM web/_cifs_help.html
+                        $RM web/basic_icon_readyshare.gif
+						$RM web/_USB_advance_help.html
+                        $RM web/_USB_approve_help.html
+                        $RM web/_USB_basic_help.html
+                        $RM web/_USB_setting_help.html
+	            		$RM web/USB_advanced.asp
+                        $RM web/USB_approved.asp
+                        $RM web/USB_basic.asp
+                        $RM web/USB_browse.asp
+                        $RM web/USB_Browse_bottom.asp
+                        $RM web/USB_Browse_top.asp
+                        $RM web/USB_disk_rm.asp
+                        $RM web/USB_disk_rm_part.asp
+                        $RM web/USB_Folder_creat.asp
+                        $RM web/USB_Folder_edit.asp
+                        $RM web/USB_folderBrowse.asp
+                        $RM web/USB_NETStorage.js
+                        $RM web/USB_settings.asp
+		 				$RM web/join.gif
+                        $RM web/joinbottom.gif
+                        $RM web/minus.gif
+                        $RM web/minusbottom.gif
+                        $RM web/plus.gif
+                        $RM web/plusbottom.gif
+                        $RM web/sda.gif
+						$RM web/dtree.css
+                        $RM web/dtree.js
+                        $RM web/folder.gif
+                        $RM web/folderopen.gif
+                        $RM web/ftp_no_shares.asp
+                        $RM web/ftp_via_no_shares.asp
+
+			fi
+
+			if [ "$BUILD_CIFS_UI" == "" ]
+			then
+				echo Removing the CIFS files
+				$RM web/cifs.asp
+                $RM web/cifs.js
+			fi
+
+			if [ "$BUILD_WSTL_VOIP" == "" ]
+			then
+						echo Removing the Voice files
+						$RM web/adv_line_settings.asp
+						$RM web/_adv_line_settings_help.html
+						$RM web/voice_settings_Line1.asp
+                       	$RM web/voice_settings_Line2.asp
+                       	$RM web/voice_settings_Phone.asp
+                        $RM web/_voice_settings_Line1_help.asp
+                        $RM web/_voice_settings_Line2_help.asp
+                        $RM web/_voice_settings_Phone_help.asp
+                        $RM web/_maint_stats_CallRecords_help.asp
+                        $RM web/_maint_stats_Voice_help.asp
+                        $RM web/htmlFireball/Menus_voice.asp
+	           			$RM web/maint_stats_CallRecords.asp
+                        $RM web/maint_stats_Voice.asp
+
+			fi
+
+                if [ "$INCLUDE_GENERIC_GUI" == 1 ]
+                then
+                       $RM web/htmlFireball
+		       $RM web/imagesV
+		       $RM web/htmlV
+                       $RM web/imagesBV
+		       $RM web/htmlV_Fairpoint
+                       $RM web/imagesFairpoint
+                       $RM web/htmlV_Frontier
+                       $RM web/imagesFrontier                       
+                       $RM web/verizon
+		       $RM web/htmlV_ATT
+		       $RM web/htmlV_ATT_Versalink
+		       $RM web/imagesATT
+
+                       if [ "$PROFILE" == "B90-755060" ]
+                       then
+		       $MKDIR -p web/cbtcpemanagement/netgear/tl/ta
+                       $LINK  /web/javascript web/cbtcpemanagement/netgear/tl/javascript
+                       $LINK  /web/imagesFireball web/cbtcpemanagement/netgear/tl/ta/imagesFireball
+                       $LINK  /web/javascript web/cbtcpemanagement/netgear/tl/ta/javascript
+                       $LINK  /web/imagesFireball web/cbtcpemanagement/netgear/tl/ta/images
+                       $LINK  /web/css web/cbtcpemanagement/netgear/tl/css
+                       $LINK  /web/htmlV_Generic web/cbtcpemanagement/netgear/tl/ta/htmlV_Generic
+                       $COPY web/htmlV_Generic/HiddenTR069Log.htm  web/cbtcpemanagement/netgear/tl/ta/tr069.html
+                       $COPY web/imagesFireball/NETGEAR_logo_lg.gif web/images/Logo.gif
+                       $RM web/imagesFireball/NETGEAR_logo_lg.gif 
+                       $COPY web/imagesFireball/CBTlogo.gif web/images/CBTlogo.gif
+                       $RM web/imagesFireball/CBTlogo.gif 
+                       else
+			if [ "$PROFILE" != "B90-755010" -o "$PROFILE" != "JWNR2000v2" -o "$PROFILE" != "JNR2000v2" -o "$PROFILE" != "JWNR2000-40000S" ]
+			then
+				$COPY web/htmlV_Generic/HiddenTR069Log.htm web/
+				$COPY web/imagesFireball/NETGEAR_logo.gif web/images/Logo.gif
+				$RM web/imagesFireball/NETGEAR_logo.gif 
+				$RM web/htmlV_Generic/HiddenTR069Log.htm
+				$COPY web/htmlV_Generic/cnuser.htm web/
+				$RM web/htmlV_Generic/cnuser.htm                       
+			fi
+                       fi
+                       $COPY web/imagesFireball/discover_ProLine.gif web/imagesFireball/discover.gif
+                       $RM web/imagesFireball/discover_ProLine.gif 
+                       $COPY web/imagesFireball/favicon.ico web/
+                       $RM web/imagesFireball/favicon.ico
+                       
+                       if [ "$PROFILE" == "G90-610014" ]
+                       then
+                           $COPY web/imagesFireball/CTLogo.gif web/images/
+                           $RM web/imagesFireball/CTLogo.gif 
+                       fi
+#Netgear Change
+                       if [ "$PROFILE" == "G90-610022" -o "$PROFILE" == "B90-755022" -o "$PROFILE" == "B90-755011" ]
+                       then
+                           $COPY web/imagesFireball/CTLogo.gif web/images/
+                           $RM web/imagesFireball/CTLogo.gif 
+                       fi
+
+                       # For Memory Optz
+                       # remove unecessary images
+                       sh ../../delImages.sh "$PROFILE"
+                       
+                       if [ "$BUILD_WSTL_WIRELESS" != "atheros" ]
+                       then
+                       # removing Versaport and VLAN pages
+                       $RM web/htmlV_Generic/cfg_VersaPort.asp
+                       $RM web/htmlV_Generic/cfg_VersaPort_help.asp
+                       $RM web/htmlV_Generic/cfg_lan_VLAN.asp
+                       $RM web/htmlV_Generic/cfg_lan_VLAN_help.asp
+					   fi
+                       if [ "$PROFILE" == "JWNR2000v2" -o "$PROFILE" == "JNR2000v2" -o "$PROFILE" == "JWNR2000-40000S" ]
+                       then
+                            $RM web/HiddenTR069Log.htm
+                       fi
+
+                       if [ "$BUILD_WSTL_WIRELESS" == "" ]
+                       then
+                              echo Removing Wireless pages as Wireless feature is disabled
+                              $RM web/htmlV_Generic/cfg_802_11_Cfg.asp
+                              $RM web/htmlV_Generic/cfg_802_11_Cfg_help.asp
+                              $RM web/htmlV_Generic/cfg_802_11_Adv.asp
+                              $RM web/htmlV_Generic/cfg_802_11_Adv_help.asp
+                              $RM web/htmlV_Generic/cfg_802_11_Security.asp
+                              $RM web/htmlV_Generic/cfg_802_11_Security_help.asp
+                              $RM web/htmlV_Generic/cfg_802_11_MAC_Filter.asp
+                              $RM web/htmlV_Generic/cfg_802_11_MAC_Filter_help.asp
+                              $RM web/htmlV_Generic/cfg_802_11_MAC_Filter_Add.asp
+                              $RM web/htmlV_Generic/cfg_802_11_MAC_Add_help.asp
+                              $RM web/htmlV_Generic/cfg_802_11_wpa.asp
+                              $RM web/htmlV_Generic/cfg_802_11_wpaMain.asp
+                              $RM web/htmlV_Generic/cfg_802_11_wpaHidden.asp
+                              $RM web/htmlV_Generic/cfg_802_11_wpa_help.asp
+                              $RM web/htmlV_Generic/maint_stats_802_11.asp
+                              $RM web/htmlV_Generic/maint_stats_802_11_help.asp
+                              $RM web/htmlV_Generic/maint_wrls_stations.asp
+                              $RM web/htmlV_Generic/maint_wrls_stations_help.asp
+                              $RM web/htmlV_Generic/installWirelessSettings.asp
+                       fi
+			if [ "$PROFILE" != "B90-755010" -o "$PROFILE" != "JWNR2000v2" -o "$PROFILE" != "JNR2000v2" -o "$PROFILE" != "JWNR2000-40000S"  ]
+			then
+				$RM web/htmlV_Generic/adv_printer_edit.asp
+				$RM web/htmlV_Generic/edit_print_server_details.asp
+			fi
+
+			# Removing unnecessary files for ER Telecom
+			if [ "$PROFILE" == "JWNR2000-40000S" ] && [ "$BUILD_ERT_SPECIFIC" == "y" ]
+			then
+				echo Removing Telstra specific error files for ER Telecom
+				$RM web/error.asp
+				$RM web/error1.asp
+				$RM web/errorWizard.asp
+				$RM web/wizard-telstra.css
+				$RM web/VPN.asp
+				$RM web/VPNCert.asp
+				$RM web/VPNCert.js
+				$RM web/VPNManage.asp
+				$RM web/VPNManage.js
+				$RM web/BAS_l2tp.asp
+				$RM web/BAS_pptp.asp
+				$RM web/fixedMobileBroadBand.asp
+				$RM web/SIPLog.asp
+				$RM web/SIPLog_T.asp
+				$RM web/mobileBroadBand.asp
+				$RM web/mobile_config.asp
+				$RM web/mobile_info.asp
+				$RM web/mobile_status.asp
+			fi
+
+			if [ "$WEB_CONTENT_DIRECTORY" == "$WESTELL_APP_DIR/WebServer/Content/netGear" ]
+			then
+			    $MKDIR web/upnp
+				$COPY $WEB_CONTENT_DIRECTORY/../fireball/upnp/* web/upnp
+				$MKDIR web/upnp_ControlPhase
+				$COPY $WEB_CONTENT_DIRECTORY/../fireball/upnp_ControlPhase/* web/upnp_ControlPhase
+				$MKDIR web/cgi-bin
+				$COPY $WEB_CONTENT_DIRECTORY/../fireball/cgi-bin/* web/cgi-bin
+				$MKDIR web/utils
+				$COPY $WEB_CONTENT_DIRECTORY/../fireball/utils/* web/utils
+			fi
+
+
+		fi
+                ;;
+	A90-427V15) ;;
+	B90-427V) ;;
+	JWNR2000v2) ;;
+	JNR2000v2) ;;
+	JWNR2000-40000S) ;;
+	*) echo "$0: warning: add case for PROFILE=$PROFILE" ;;
+esac
+
+(cd web
+bs=$(cat html*/* javascript/* 2>/dev/null | wc -c)
+for i in  html*/* javascript/*
+do
+	if [ -f $i ]
+	then
+		case "$i" in
+			javascript/*|*.js$) js=1 ;;
+			*) js=0 ;;
+		esac
+		$HOSTTOOLS_DIR/stripweb js=$js < $i > temp && mv temp $i || exit 1
+	fi
+done
+as=$(cat html*/* javascript/* 2>/dev/null | wc -c)
+echo $bs $as | awk '{print "before stripweb:",$1;print "after stripweb:",$2;print "savings:",$1-$2,(1-($2/$1))*100 "%"}'
+)
+# Remove /html_bhr files whether or not they were copied to /html REMOVE THIS when the directory is removed from starteam
+$RM web/html_bhr
+
+# Remove /utils directory, not needed in final product
+$RM web/utils
+
+# Remove /RDM_extensions, its content are copied to web/verizon.
+$RM web/verizon/RDM_extensions
+if [ "$INCLUDE_ATT_GUI" == 1 ]
+then 
+	
+       $COPY web/cgi-bin/hello_att web/cgi-bin/hello
+       $RM web/cgi-bin/hello_att
+       $RM web/cgi-bin/diagCLog
+       $RM web/cgi-bin/diagLog
+       $RM web/cgi-bin/diagSLog
+       $RM web/cgi-bin/firewall-log
+       $RM web/cgi-bin/Log_Event_All
+       $RM web/cgi-bin/Log_Event_Connection
+       $RM web/cgi-bin/Log_Event_Diagnostics
+       $RM web/cgi-bin/Log_Event_System
+       $RM web/cgi-bin/Log_Event_Voice
+       $RM web/cgi-bin/Log_Event_Wireless
+       $RM web/cgi-bin/Log_Fw
+else
+       $RM web/cgi-bin/hello_att
+       $RM web/cgi-bin/toggleAdvanced
+fi
+
+echo copying WebServer TR064 files
+if [ "$BUILD_WSTL_UPNP_CONTROL_PHASE" == "y" ] 
+then
+	echo "BUILD_WSTL_UPNP_CONTROL_PHASE is set"
+	$RM web/upnp
+        $RM web/upnp_ControlPhase/UPNP_rootDesc.xml
+if [ "$BUILD_WSTL_ATT_GATEWAY" == "y" ] 
+then
+        $COPY web/upnp_ControlPhase/UPNP_rootDesc_B90ATT.xml web/upnp_ControlPhase/UPNP_rootDesc.xml
+else
+        $COPY web/upnp_ControlPhase/UPNP_rootDesc_ATT.xml web/upnp_ControlPhase/UPNP_rootDesc.xml
+fi
+        $RM web/upnp_ControlPhase/UPNP_rootDesc*ATT.xml
+        cd web 
+ 
+	$LINK upnp_ControlPhase/ upnp
+	$RM upnp_ControlPhase/*PORTFWD*
+        cd ../ 
+
+else
+	echo " BUILD_WSTL_UPNP_CONTROL_PHASE is not set"
+#	$RM web/upnp_ControlPhase/*
+#	$COPY web/upnp/* web/upnp_ControlPhase/
+#	$RM web/upnp
+        cd web  
+#	$LINK upnp_ControlPhase/ upnp
+        cd ../ 
+fi
+
+echo copying WebServer TR064 files
+if [ "$BUILD_WESTELL_UPNP" == "y" ] 
+then
+$RM web/upnp
+$RM web/upnp_ControlPhase
+$RM etc/TR064_Auth.conf
+$MKDIR web/upnp
+$MKDIR web/upnp_ControlPhase
+$COPY $WESTELL_APP_DIR/upnp_app/upnp_conf/upnp/* web/upnp
+$COPY $WESTELL_APP_DIR/upnp_app/upnp_conf/tr064/* web/upnp_ControlPhase
+$COPY $WESTELL_APP_DIR/upnp_app/upnp_conf/TR064_Auth.conf etc/TR064_Auth.conf
+fi
+
+# generate umconfig.txt
+
+echo generating WebServer security file, umconfig.txt
+
+if [ "$PROFILE" == "A90-750115" ]
+then
+  WEB_CONTENT_DIRECTORY=$FS_DIR/web/ sh -c "$WEB_CONTENT_DIRECTORY/utils/gen_umconfig/gen_protected $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/RDM_extensions/UNPROTECTED $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/PROTECTED"
+  sh -c "$WEB_CONTENT_DIRECTORY/utils/gen_umconfig/gen_umconfig $WEB_CONTENT_DIRECTORY/utils/gen_umconfig//umconfig.src $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/RDM_extensions/EXCEPTIONS $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/PROTECTED $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/umconfig.txt"
+else 
+	if [ "$WEB_CONTENT_DIRECTORY" == "$WESTELL_APP_DIR/WebServer/Content/netGear" ]
+	then
+		WEB_CONTENT_DIRECTORY=$FS_DIR/web/ sh -c "$WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/gen_protected $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/UNPROTECTED $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/PROTECTED"
+		sh -c "$WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/gen_umconfig $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/umconfig.src $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/EXCEPTIONS $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/PROTECTED $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/umconfig.txt"
+	else
+	  WEB_CONTENT_DIRECTORY=$FS_DIR/web/ sh -c "$WEB_CONTENT_DIRECTORY/utils/gen_umconfig/gen_protected $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/UNPROTECTED $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/PROTECTED"
+	  sh -c "$WEB_CONTENT_DIRECTORY/utils/gen_umconfig/gen_umconfig $WEB_CONTENT_DIRECTORY/utils/gen_umconfig//umconfig.src $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/EXCEPTIONS $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/PROTECTED $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/umconfig.txt"
+	fi
+fi
+
+if [ "$WEB_CONTENT_DIRECTORY" == "$WESTELL_APP_DIR/WebServer/Content/netGear" ]
+then
+        $COPY $WEB_CONTENT_DIRECTORY/../fireball/utils/gen_umconfig/umconfig.txt etc
+else
+        $COPY $WEB_CONTENT_DIRECTORY/utils/gen_umconfig/umconfig.txt etc
+fi
+
+#Netgear Change
+if [ "$VENDOR_DIR" != "$KERNEL_PATH/Lantiq_UGW" -a "$VENDOR_DIR" != "$KERNEL_PATH/Lantiq_UGW_5.x" -a "$VENDOR_DIR" != "$KERNEL_PATH/Realtek" -a "$VENDOR_DIR" != "$KERNEL_PATH/Realtek_3.1" ]
+then
+        echo -n "Module install for 2.4 kernel"
+        $MOVE etc/modules_install_2.4 etc/modules_install
+        $RM etc/modules_install_2.6
+else
+        echo -n "Module install for 2.6 kernel"
+	
+        $MOVE etc/modules_install_2.6 etc/modules_install
+        $RM etc/modules_install_2.4
+	echo -n "done"
+fi
+
+#Localization change
+if [ "$PROFILE" == "JWNR2000v2" -o  "$PROFILE" == "JNR2000v2" -o "$PROFILE" == "JWNR2000-40000S" ]
+then
+if [ "$BUILD_LANGUPG_FEATURE" = "y" ]
+then
+$RM web/langs
+$LINK /langs web/langs
+fi
+$LINK /WFIO/DYN.js web/langs/DYN.js
+fi
+
+if [ "$PROFILE" == "JNR2000v2_4M" ]
+then
+rm -rf web
+fi
+chmod -R 755 $FS_DIR
+

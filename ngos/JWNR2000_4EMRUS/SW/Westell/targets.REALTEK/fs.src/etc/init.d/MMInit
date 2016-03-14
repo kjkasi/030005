@@ -1,0 +1,149 @@
+#!/bin/sh
+
+PATH=/sbin:/bin
+export PATH
+
+mount -t proc proc /proc
+mount -t devpts devpts /dev/pts
+/bin/mount -a
+mkdir -p /var/log/sa /var/run /var/state/dhcp /var/udhcpd /var/dev /var/lock /var/tmp
+mkdir -p /var/net_mgr
+mkdir -m 777 /var/ftp
+
+# Copy default etc files into rw etc directory
+cp -r /etc/defaults /var/etc
+
+# Mount the ffs file system here to make sure that the ffs driver has
+# finished initialization.
+mount -t ffs -o noatime,noexec none /WFIO
+
+mount /dev/mtdblock3 /langs
+
+# IP Multicast - Force nothing
+#
+echo 3 > /proc/sys/net/ipv4/conf/all/force_igmp_version
+
+# Turn on IP forwarding
+#
+echo "1" > /proc/sys/net/ipv4/ip_forward
+
+# Turn on IPv6 forwarding
+if [ -f /proc/sys/net/ipv6/conf/all/forwarding ]
+then
+    echo "1" > /proc/sys/net/ipv6/conf/all/forwarding
+fi
+
+# Tune default receive window
+echo 65535 > /proc/sys/net/core/wmem_default
+echo 65535 > /proc/sys/net/core/rmem_default
+# Tune max receive window
+echo 65535 > /proc/sys/net/core/wmem_max
+echo 65535 > /proc/sys/net/core/rmem_max
+
+# Reboot on out-of-memory
+echo 1 > /proc/sys/vm/panic_on_oom
+
+# load netfilter modules
+/etc/modules_install /lib/modules/`uname -r`/kernel
+
+# Tune default TIME_WAIT timeout
+echo 75 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_time_wait
+# Tune default NAT timeouts to match with Versalink
+echo 60 > /proc/sys/net/ipv4/netfilter/ip_conntrack_icmp_timeout
+echo 5 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_close
+echo 43200 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_established
+echo 10 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_syn_sent
+echo 60 > /proc/sys/net/ipv4/netfilter/ip_conntrack_udp_timeout
+echo 60 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_last_ack
+
+# If we really wanted to work well on a network with a
+# large bandwidth-delay product...
+# if true ; then
+# echo 8388608 > /proc/sys/net/core/wmem_max 
+# echo 8388608 > /proc/sys/net/core/rmem_max 
+# echo "4096 87380 4194304" > /proc/sys/net/ipv4/tcp_rmem
+# echo "4096 65536 4194304" > /proc/sys/net/ipv4/tcp_wmem
+# fi
+
+
+ifconfig lo 127.0.0.1 netmask 255.0.0.0 broadcast 127.255.255.255 up
+
+# Enables A4 acceleration on AmazonSE
+#echo disable > /proc/eth/dbg              
+#echo enable > /proc/ppa/api/hook
+
+# For PPA the TCP packets go through outbound PPa before inbound is set up
+# If that happens, the inbound packet may be rejected by netfilter as out of window,
+# which causes PPA to miss the inbound packet that is supposed to set up PPA
+# nf_conntrack_tcp_be_liberal set to 1 avoids that
+
+if [ -f /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal ]
+then
+    echo "1" > /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal
+fi
+
+# The following now done in LanConfig.c / LanStart
+#/bin/ppacmd init 
+#/bin/ppacmd control --enable-lan --enable-wan
+
+# Disables Infineon debug messages
+#echo "disable assert" > /proc/eth/dbg
+
+# From http://lartc.org/lartc.html
+#  Basically, if the reply to a packet wouldnt go out the interface
+#  this packet came in, then this is a bogus packet and should be ignored.
+# This is disabled because it can interfere with IPSec.
+#for i in /proc/sys/net/ipv4/conf/*/rp_filter ; do
+#   echo 2 > $i
+#done
+
+# From http://lartc.org/lartc.html
+#  You need to set this if you use dial-on-demand with a dynamic
+#  interface address. Once your demand interface comes up, any
+#  local TCP sockets which havent seen replies will be rebound
+#  to have the right address. This solves the problem that the
+#  connection that brings up your interface itself does
+#  not work, but the second try does.
+echo 1 > /proc/sys/net/ipv4/ip_dynaddr
+
+# From http://lartc.org/lartc.html
+#  On Linux 2.4, you may need to execute
+echo 1 > /proc/sys/net/ipv4/ip_nonlocal_bind
+#  before being able to send out unsolicited ARP messages! (with arping)
+
+# Start logging daemons
+#  Check if we need to send log messages to a logging host.
+if [ -f /WFIO/loghost ]
+then
+    LOG_REMOTE="-L -R `cat /WFIO/loghost`"
+fi
+# syslogd keeps our log messages in a circular memory buffer.
+#  The size is important.  Envoy assumes that it will be < 32K.
+#  If we increase the size of the buffer beyond 32K, Envoy
+#  will need to be modified.  THIS NEEDS TO MATCH RemoteLogConfig's
+#  size (we don't have config manager up yet).
+syslogd -C 100K -m 0 $LOG_REMOTE
+# klogd retrieves log messages from the kernel, and feeds them
+#  to syslogd.
+klogd -c 8
+# SRS requires that we log the remote loghost
+if [ -f /WFIO/loghost ]
+then
+    logger "syslogd: also logging to remote loghost `cat /WFIO/loghost`"
+fi
+
+# USB host support
+mkdir /var/sys
+mkdir /var/ftp/usb_mount0
+mkdir /var/ftp/usb_mount1
+mkdir /var/ftp/usb_mount2
+mkdir /var/ftp/usb_mount3
+
+mount -t sysfs none /var/sys
+
+if [ -f /bin/usermode-agent ]
+then
+    /bin/usermode-agent&
+fi
+
+exit 

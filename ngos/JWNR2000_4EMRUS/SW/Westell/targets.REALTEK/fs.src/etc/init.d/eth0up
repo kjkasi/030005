@@ -1,0 +1,5 @@
+ifconfig eth0 0.0.0.0 up
+brctl addbr br0
+brctl addif br0 eth0
+ifconfig br0 192.168.1.1 up
+

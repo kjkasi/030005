@@ -1,0 +1,19 @@
+# this script gets run by /var/net_mgr/exec/FWUpDown when
+# the WAN Intfc goes up/down or when the IP changes.
+UPDOWN=$1
+WANINTFC=$2
+WANIP=$3
+if [ "X$UPDOWN" = "Xup" ] ; then
+	IPTI="iptbld -I"
+	IPTA="iptbld -A"
+else
+	IPTI="iptbld -D"
+	IPTA="iptbld -D"
+fi
+
+remoteaccessport="`cfg_read -q WebInfo.0.RemoteAccessPortNumber`"
+
+$IPTI nat_modemredir -t nat -i ! br+ -p tcp --dport $remoteaccessport -j REDIRECT
+$IPTA proto_chain -i ! br+ -p tcp --dport $remoteaccessport -j logInboundPermitted
+
+/bin/iptbld -BUILD | /sbin/iptables-restore

@@ -1,0 +1,10 @@
+while [ 1 ]
+do
+echo %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+uptime
+free
+ps
+cat /proc/meminfo
+sleep 600 
+done &
+

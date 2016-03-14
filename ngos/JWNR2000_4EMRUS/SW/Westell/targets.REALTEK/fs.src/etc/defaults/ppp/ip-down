@@ -1,0 +1,35 @@
+#!/bin/sh
+
+ECHO="logger -t ip-down[$$] -p daemon.NOTICE"
+
+$ECHO "$IFNAME: disconnected; connected for $CONNECT_TIME seconds"
+$ECHO "$IFNAME: $BYTES_SENT bytes sent, $BYTES_RCVD bytes received"
+
+exit 0
+
+$ECHO "1: $1"
+$ECHO "2: $2"
+$ECHO "3: $3"
+$ECHO "4: $4"
+$ECHO "5: $5"
+$ECHO "6: $6"
+$ECHO "7: $7"
+
+# ip-up & ip-down
+$ECHO "DEVICE: $DEVICE"
+$ECHO "IFNAME: $IFNAME"
+$ECHO "IPLOCAL: $IPLOCAL"
+$ECHO "IPREMOTE: $IPREMOTE"
+$ECHO "PEERNAME: $PEERNAME"
+$ECHO "SPEED: $SPEED"
+$ECHO "ORIG_UID: $ORIG_UID"
+$ECHO "PPPLOGNAME: $PPPLOGNAME"
+
+# ip-down only
+$ECHO "CONNECT_TIME: $CONNECT_TIME"
+$ECHO "BYTES_SENT: $BYTES_SENT"
+$ECHO "BYTES_RCVD: $BYTES_RCVD"
+$ECHO "LINKNAME: $LINKNAME"
+$ECHO "DNS1: $DNS1"
+$ECHO "DNS2: $DNS2"
+

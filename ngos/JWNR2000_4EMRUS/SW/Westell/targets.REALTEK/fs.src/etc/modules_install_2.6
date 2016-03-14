@@ -1,0 +1,100 @@
+#!/bin/sh
+# bcm_usb.ko is loaded by net_mgr.
+# endpointdd is loaded in voipKernelInit,
+# which must preceed wstlgpio, if voice
+# is in the load. endpointdd also loads
+# wstlgpio and adsldd. If endointdd is
+# not in the load these two are loaded
+# in gpioctl_main().
+#
+# All the Algs are loaded by net_mgr.
+#
+if [ ! -d $1 ] ; then
+    echo $0: no such directory: $1!; exit 0
+fi
+skip()
+{
+echo "skipping $1"
+}
+
+echo "Start adding mods from $1"
+cd $1
+for f in *
+do
+    if [ $f = "*" ] ; then
+	    echo $0: nothing in directory $1!; exit 0
+    fi
+    case $f in
+    adsldd.ko) skip $f ;;
+    bcmatmtest.ko) skip $f ;;
+    endpointdd.ko) skip $f ;;
+    wstlgpio.ko) skip $f ;;
+# Skip Lantiq PPA modules
+    ifx_ppa_api_proc.ko) skip $f ;;
+    ifx_ppa_api.ko) skip $f ;;
+    ifxmips_ppa_hal_amazon_se_a4.ko) skip $f ;;
+    ifxmips_ppa_datapath_amazon_se_a4.ko) skip $f ;;
+    ifxmips_ppa_hal_amazon_se_e4.ko) skip $f ;;
+    ifxmips_ppa_datapath_amazon_se_e4.ko) skip $f ;;
+    ifxmips_ppa_hal_ar9_a5.ko) skip $f ;;
+    ifxmips_ppa_datapath_ar9_a5.ko) skip $f ;;
+    ifxmips_ppa_hal_ar9_d5.ko) skip $f ;;
+    ifxmips_ppa_datapath_ar9_d5.ko) skip $f ;;
+    ifxmips_ppa_hal_ar9_e5.ko) skip $f ;;
+    ifxmips_ppa_datapath_ar9_e5.ko) skip $f ;;
+    ifxmips_eth_drv.ko) skip $f ;;
+    ifxmips_ptm.ko) skip $f ;;
+# Skip this for now. MAF
+    wl.ko) skip $f ;;
+    wlobj-wlconfig_lx_wl_dslcpe_pci_ap_1gn.ko) skip $f ;;
+    bcm_usb.ko) skip $f ;;
+    vnet.ko) skip $f ;;
+# Skip the Algs
+    nf_conntrack_proto*.ko) skip $f ;;
+    nf_conntrack_ftp.ko) skip $f ;;
+    nf_conntrack_h323.ko) skip $f ;;
+    nf_conntrack_ipsec.ko) skip $f ;;
+    nf_conntrack_irc.ko) skip $f ;;
+    nf_conntrack_pptp.ko) skip $f ;;
+    nf_conntrack_tftp.ko) skip $f ;;
+    nf_conntrack_sip.ko) skip $f ;;
+    nf_nat*.ko) skip $f ;;
+    ip_conntrack_dtx8.ko) skip $f ;;
+    ip_conntrack_ftp.ko) skip $f ;;
+    ip_conntrack_gre.ko) skip $f ;;
+    ip_conntrack_h323.ko) skip $f ;;
+    ip_conntrack_ipsec.ko) skip $f ;;
+    ip_conntrack_irc.ko) skip $f ;;
+    ip_conntrack_pptp.ko) skip $f ;;
+    ip_conntrack_pt.ko) skip $f ;;
+    ip_conntrack_rtsp.ko) skip $f ;;
+    ip_conntrack_tftp.ko) skip $f ;;
+    ip_conntrack_wm.ko) skip $f ;;
+    ip_nat_dtx8.ko) skip $f ;;
+    ip_nat_ftp.ko) skip $f ;;
+    ip_nat_gre.ko) skip $f ;;
+    ip_nat_h323.ko) skip $f ;;
+    ip_nat_ipsec.ko) skip $f ;;
+    ip_nat_irc.ko) skip $f ;;
+    ip_nat_pptp.ko) skip $f ;;
+    ip_nat_pt.ko) skip $f ;;
+    ip_nat_rtsp.ko) skip $f ;;
+    ip_nat_snmp_basic.ko) skip $f ;;
+    ip_nat_tftp.ko) skip $f ;;
+    ip_nat_wm.ko) skip $f ;;
+    ipsec) skip $f ;;
+    ipsec_nat) skip $f ;;
+# Load the rest
+    *.ko)
+        echo "Loading $f"   
+	modname=`basename $f .ko`
+        modprobe $modname
+        ;;
+# recurse
+    *)
+        echo "$0 $f"
+        $0 $f
+        ;;
+    esac
+done
+

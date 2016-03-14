@@ -1,0 +1,143 @@
+#!/bin/sh
+# bcm_usb.ko is loaded by net_mgr.
+# endpointdd is loaded in voipKernelInit,
+# which must preceed wstlgpio, if voice
+# is in the load. endpointdd also loads
+# wstlgpio and adsldd. If endointdd is
+# not in the load these two are loaded
+# in gpioctl_main().
+#
+# All the Algs are loaded by net_mgr.
+#
+
+if [ ! -d $1 ] ; then
+    echo $0: no such directory: $1!; exit 0
+fi
+cd $1
+for f in *
+do
+    if [ $f = "*" ] ; then
+	    echo $0: nothing in directory $1!; exit 0
+    fi
+    case $f in
+#    bcm_usb.ko)
+#        echo "skipping $f"
+#	;;
+    bcmatmtest.ko)
+        echo "skipping $f"
+    	;;
+    endpointdd.ko)
+        echo "skipping $f"
+    	;;
+    wstlgpio.ko)
+        echo "skipping $f"
+    	;;
+    adsldd.ko)
+        echo "skipping $f"
+    	;;
+# Skip this for now. MAF
+    wldrv.ko)
+        echo "skipping $f"
+    	;;
+# Skip the Algs
+    ip_conntrack_proto_gre.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_proto_gre.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_pptp.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_pptp.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_h323.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_h323.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_ftp.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_ftp.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_snmp_basic.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_irc.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_irc.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_tftp.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_tftp.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_dtx8.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_dtx8.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_proto_esp.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_proto_esp.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_ipsec.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_ipsec.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_wm.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_wm.o)
+        echo "skipping $f"
+    	;;
+    ip_conntrack_pt.o)
+        echo "skipping $f"
+    	;;
+    ip_nat_pt.o)
+        echo "skipping $f"
+    	;;
+    dtx8)
+        echo "skipping $f"
+    	;;
+    ipsec)
+        echo "skipping $f"
+    	;;
+    ipsec_nat)
+        echo "skipping $f"
+    	;;
+    pt)
+        echo "skipping $f"
+    	;;
+    wm)
+        echo "skipping $f"
+    	;;
+    ftp)
+        echo "skipping $f"
+    	;;
+# Load the rest
+    *.o)
+        echo "Loading $f"   
+	modname=`basename $f .o`
+        modprobe $modname
+        ;;
+# recurse
+    *)
+        echo "$0 $f"
+        $0 $f
+        ;;
+    esac
+done
+

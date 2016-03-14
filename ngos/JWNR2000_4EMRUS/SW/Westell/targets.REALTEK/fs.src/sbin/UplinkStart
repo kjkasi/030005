@@ -1,0 +1,57 @@
+echo "Disabling the LAN"
+/bin/sh /var/net_mgr/exec/LanStop
+
+echo "Creating Switch on eth0"
+/sbin/ifconfig eth0 up
+/bin/switch_utility Disable
+/bin/switch_utility CfgSet 3 1 0 0 00:00:00:00:00:00
+/bin/switch_utility VLAN_IdCreate 2 1
+/bin/switch_utility VLAN_PortCfgSet 0 2 1 0 2 0 0
+/bin/switch_utility VLAN_PortMemberAdd 2 0 0
+/bin/switch_utility VLAN_PortMemberAdd 2 6 1
+/bin/vconfig add eth0 2
+/bin/switch_utility VLAN_IdCreate 3 1
+/bin/switch_utility VLAN_PortCfgSet 1 3 1 1 2 0 0
+/bin/switch_utility VLAN_PortCfgSet 2 3 1 1 2 0 0
+/bin/switch_utility VLAN_PortCfgSet 3 3 1 1 2 0 0
+/bin/switch_utility VLAN_PortMemberAdd 3 1 0
+/bin/switch_utility VLAN_PortMemberAdd 3 2 0
+/bin/switch_utility VLAN_PortMemberAdd 3 3 0
+/bin/switch_utility VLAN_PortMemberAdd 3 6 1
+/bin/switch_utility Enable
+/bin/vconfig add eth0 3
+echo Starting LAN
+ls -la /var/etc/dnsmasq.*
+/bin/ppacmd init
+echo LanStart: eth0
+/sbin/ifconfig eth0 hw ether 00:60:0f:00:00:01
+/sbin/ifconfig eth0 0.0.0.0 up
+echo LanStart: eth0.2
+/sbin/ifconfig eth0.2 hw ether 00:60:0f:00:00:02
+/sbin/ifconfig eth0.2 0.0.0.0 up
+echo LanStart: eth0.3
+/sbin/ifconfig eth0.3 hw ether 02:60:0f:00:00:02
+/sbin/ifconfig eth0.3 0.0.0.0 up
+/bin/brctl addif br0 eth0.3
+echo LanStart: eth0.4
+/sbin/ifconfig eth0.4 hw ether 02:60:0f:00:00:03
+echo LanStart: eth0.5
+/sbin/ifconfig eth0.5 hw ether 02:60:0f:00:00:04
+echo LanStart: usb0
+modprobe g_ether host_addr=00:60:0f:00:00:02
+/sbin/ifconfig usb0 hw ether 02:60:0f:00:00:02
+/sbin/ifconfig usb0 0.0.0.0 up
+/bin/brctl addif br0 usb0
+echo LanStart: ath0
+wlanconfig ath0 create wlandev wifi0 wlanmode ap> /dev/null 2>&1
+/sbin/ifconfig ath0 0.0.0.0 up
+/bin/brctl addif br0 ath0
+/bin/ppacmd addlan -i ath0
+echo LanStart: ath1
+wlanconfig ath1 create wlandev wifi0 wlanmode ap> /dev/null 2>&1
+/bin/ppacmd addlan -i br0
+/bin/ppacmd addlan -i br3
+/sbin/ifconfig br0 $1 netmask $2 up
+/bin/ppacmd control --enable-lan --enable-wan
+echo up > /var/BrgUp
+

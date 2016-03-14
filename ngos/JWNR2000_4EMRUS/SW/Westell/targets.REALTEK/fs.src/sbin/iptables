@@ -1,0 +1,2 @@
+/bin/iptbld $*&
+/sbin/iptables.exe $*

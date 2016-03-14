@@ -1,0 +1,45 @@
+#!/bin/sh
+
+if [ -r /etc/rc.d/config.sh ]; then
+	. /etc/rc.d/config.sh
+fi
+
+##Sumedh: do not do this anymore
+##mounted=`mount | grep "firmware"`
+##if [ "$mounted" = "" ]; then
+#if [ -f "/tmp/bootupdone" ]; then
+#	/etc/rc.d/rc.bringup_wan start
+#	#/etc/rc.d/rc.bringup_wan_services start
+#	/etc/rc.d/rc.bringup_services start
+#	. /etc/rc.d/init.d/dns_relay restart
+#	. /etc/rc.d/init.d/oam restart
+#	#/sbin/insmod dwc_otg.o
+#	#/sbin/insmod g_ether.o
+#	#ifconfig usb0 up
+#	#brctl addif br0 usb0 
+#	#/usr/sbin/atmarpd -b -l /dev/null ##need to start if CLIP wan is up
+#	#devm
+#fi
+#echo "" > /tmp/bootupdone
+#
+. /etc/rc.d/init.d/oam restart &
+#. /etc/rc.d/init.d/qos_rate_update
+#
+if [ "$IFX_CONFIG_CPE_DSL_MIB" = "1" ]; then
+	killall -SIGUSR2 snmpd
+fi
+
+#Sumedh-For specific bords only
+if [ "1$IFX_CONFIG_CHINA_MKT_1" = "11" ]; then 
+#	/usr/sbin/ledconfig up
+	/usr/sbin/led_control -l 4 on
+else
+	/usr/sbin/led_control -l 2 off
+fi
+
+#706122 start - set status down and raise link down event
+echo "7" > /tmp/adsl_status
+
+# call event utility for adsl link up
+/usr/sbin/ifx_event_util "ADSL_LINK" "UP"
+#706122 end
